@@ -24,6 +24,9 @@ CHUNK_SIZE_DEFAULT = int(os.getenv("CHUNK_SIZE", "500"))
 # Default Retrieval Configuration
 DEFAULT_RETRIEVAL_K = 3
 
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DATA_DIR = os.path.join(ROOT_DIR, os.getenv("DATA_DIR", "data"))
+
 # Error Messages
 ERROR_NO_API_KEY = (
     "No valid API key found. Please set one of: "

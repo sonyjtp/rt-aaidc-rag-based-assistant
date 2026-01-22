@@ -58,7 +58,6 @@ class ChromaDBClient:
         Returns:
             ChromaDB collection instance
         """
-        print(f"Getting or creating collection: {collection_name}")
         return self.client.get_or_create_collection(
             name=collection_name,
             metadata=CHROMA_COLLECTION_METADATA,

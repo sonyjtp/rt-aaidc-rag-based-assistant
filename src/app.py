@@ -7,27 +7,26 @@ from vectordb import VectorDB
 from langchain_openai import ChatOpenAI
 from langchain_groq import ChatGroq
 from langchain_google_genai import ChatGoogleGenerativeAI
-from config import LLM_PROVIDERS, LLM_TEMPERATURE, ERROR_NO_API_KEY
+from config import LLM_PROVIDERS, LLM_TEMPERATURE, ERROR_NO_API_KEY, DATA_DIR
 
 # Load environment variables
 load_dotenv()
 
-
 def load_documents() -> List[str]:
     """
-    Load documents for demonstration.
+    Load documents from the DATA_DIR directory.
 
     Returns:
-        List of sample documents
+        List of document contents loaded from .txt files
     """
-    results = []
-    # TODO: Implement document loading
-    # HINT: Read the documents from the data directory
-    # HINT: Return a list of documents
-    # HINT: Your implementation depends on the type of documents you are using (.txt, .pdf, etc.)
-
-    # Your implementation here
-    return results
+    documents = []
+    for filename in os.listdir(DATA_DIR):
+        if filename.endswith(".txt"):
+            file_path = os.path.join(DATA_DIR, filename)
+            with open(file_path, "r", encoding="utf-8") as file:
+                content = file.read()
+                documents.append(content)
+    return documents
 
 
 class RAGAssistant:
@@ -64,21 +63,23 @@ class RAGAssistant:
         """Initialize the RAG assistant."""
         # Initialize LLM - check for available API keys in order of preference
         self.llm = self._initialize_llm()
+        print(f"LLM {self.llm.model_name} initialized")
 
         # Initialize vector database
         self.vector_db = VectorDB()
+        print("Vector database initialized")
 
         # Create RAG prompt template
         # TODO: Implement your RAG prompt template
         # HINT: Use ChatPromptTemplate.from_template() with a template string
         # HINT: Your template should include placeholders for {context} and {question}
         # HINT: Design your prompt to effectively use retrieved context to answer questions
-        self.prompt_template = None  # Your implementation here
-
-        # Create the chain
-        self.chain = self.prompt_template | self.llm | StrOutputParser()
-
-        print("RAG Assistant initialized successfully")
+        # self.prompt_template = None  # Your implementation here
+        #
+        # # Create the chain
+        # self.chain = self.prompt_template | self.llm | StrOutputParser()
+        #
+        # print("RAG Assistant initialized successfully")
 
     def add_documents(self, documents: List) -> None:
         """
@@ -120,10 +121,9 @@ def main():
 
         # Load sample documents
         print("\nLoading documents...")
-        sample_docs = load_documents()
-        print(f"Loaded {len(sample_docs)} sample documents")
-
-        assistant.add_documents(sample_docs)
+        documents = load_documents()
+        print(f"Loaded {len(documents)} sample documents")
+        assistant.add_documents(documents)
 
         done = False
 

@@ -260,7 +260,7 @@ def query(self, question: str, n_results: int = 3) -> Dict[str, Any]:
    ```python
    from src.vectordb import VectorDB
    vdb = VectorDB()
-   chunks = vdb.chunk_text("Your test text here...")
+   chunks = vdb.chunk_texts("Your test text here...")
    print(f"Created {len(chunks)} chunks")
    ```
 2. **Test document loading:**
@@ -350,9 +350,7 @@ Before starting, make sure you have:
 2. **Configure your API key:**
 
    ```bash
-   # Create environment file (choose the method that works on your system)
-   cp .env.example .env    # Linux/Mac
-   copy .env.example .env  # Windows
+   # Create  a .env file
    ```
 
    Edit `.env` and add your API key:

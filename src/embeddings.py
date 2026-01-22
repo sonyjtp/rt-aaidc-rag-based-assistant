@@ -22,7 +22,6 @@ def initialize_embedding_model() -> HuggingFaceEmbeddings:
     print(f"Device for embeddings: {device}")
 
     model_name = os.getenv("EMBEDDING_MODEL", "sentence-transformers/all-mpnet-base-v2")
-    print(f"Loading embedding model: {model_name}")
 
     return HuggingFaceEmbeddings(
         model_name=model_name,
