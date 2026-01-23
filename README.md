@@ -260,7 +260,7 @@ def query(self, question: str, n_results: int = 3) -> Dict[str, Any]:
    ```python
    from src.vectordb import VectorDB
    vdb = VectorDB()
-   chunks = vdb.chunk_texts("Your test text here...")
+   chunks = vdb.chunk_documents("Your test text here...")
    print(f"Created {len(chunks)} chunks")
    ```
 2. **Test document loading:**

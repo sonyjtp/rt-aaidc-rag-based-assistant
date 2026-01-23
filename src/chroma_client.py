@@ -30,8 +30,9 @@ class ChromaDBClient:
 
         # Initialize the CloudClient
         self.client = self._initialize_client()
+        print("✓ ChromaDB client initialized.")
 
-    def _initialize_client(self) -> Any:
+    def _initialize_client(self) -> chromadb.api.ClientAPI:
         """
         Initialize and return a ChromaDB CloudClient using instance configuration.
 
@@ -41,7 +42,6 @@ class ChromaDBClient:
         Returns:
             ChromaDB CloudClient instance
         """
-        print(f"Connecting to ChromaDB with tenant: {self.tenant}")
         return chromadb.CloudClient(
             api_key=self.api_key,
             tenant=self.tenant,

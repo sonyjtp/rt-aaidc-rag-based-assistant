@@ -34,47 +34,54 @@ class VectorDB:
                 "CHROMA_COLLECTION_NAME", "rag_documents"
             )
         )
-        print(f"Vector database initialized with collection: {self.collection.name}")
+        print(f"✓ Vector database collection: {self.collection.name} ready for use")
 
         # Initialize embedding model with device detection
         self.embedding_model = initialize_embedding_model()
-        print(f"Embedding model {self.embedding_model.model_name} initialized")
+        print(f"✓ Embedding model {self.embedding_model.model_name} initialized")
         self.text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
             separators=["\n\n", "\n", ". ", " ", ""]
         )
 
-
-    def chunk_texts(self, text: str | list[str]) -> list[str]:
+    def chunk_documents(self, documents: list[str] | list[dict[str, str]]) -> list[tuple[str, dict[str, str]]]:
         """
-        Split text into chunks using recursive character splitting.
-
-        Handles both single strings and lists of strings, processing each through
-        the configured text splitter with chunk_size and chunk_overlap settings.
-
+        Chunk documents into smaller pieces. Each chunk is paired with its metadata.
         Args:
-            text: Input text to chunk - can be a single string or list of strings
+            documents: List of documents (strings or dicts with 'content', 'title', and 'filename')
 
         Returns:
-            Flattened list of all text chunks from the input(s)
+            List of tuples containing chunk text and metadata dictionary with title and filename
         """
-        chunks = [
-            chunk
-            for t in (text if isinstance(text, list) else [text])
-            for chunk in self.text_splitter.split_text(t)
+        docs = documents if isinstance(documents, list) else [documents]
+        chunks_with_metadata = [
+            (chunk, {
+                'title': doc.get('title', ''),
+                'filename': doc.get('filename', '')
+            } if isinstance(doc, dict) else {
+                'title': '',
+                'filename': ''
+            })
+            for doc in docs
+            for chunk in self.text_splitter.split_text(
+                doc['content'] if isinstance(doc, dict) else doc
+            )
+            if chunk.strip() != doc.get('title', '').strip()
         ]
+        return chunks_with_metadata
 
-        return chunks
-
-    def add_documents(self, documents: list) -> None:
+    def add_documents(self, documents: list[str] | list[dict[str, str]]) -> None:
         """
         Add documents to the vector database.
 
         Args:
             documents: List of documents
         """
-        self.insert_chunks_into_db(self.chunk_texts(documents))
+        chunks_with_metadata = self.chunk_documents(documents=documents)
+        print(f"✓ Created {len(chunks_with_metadata)} chunks from {len(documents)} documents")
+        self.insert_chunks_into_db(chunks_with_metadata)
+
         # TODO: Implement document ingestion logic
         # HINT: Loop through each document in the documents list
         # HINT: Extract 'content' and 'metadata' from each document dict
@@ -85,20 +92,22 @@ class VectorDB:
         # HINT: Print progress messages to inform the user
 
         # Your implementation here
-        print(f"Chunks from {len(documents)} documents added to vector database")
+        print(f"✓ Chunks added to vector database")
 
-    def insert_chunks_into_db(self, chunks):
+    def insert_chunks_into_db(self, chunks: list[tuple[str, dict]]):
         next_id = self.collection.count()
-        ids = list(range(next_id, next_id + len(chunks)))
-        ids = [f"document_{id}" for id in ids]
-        embeddings = self.embedding_model.embed_documents(chunks)
+        keys = [f"document_{idx}" for idx in range(next_id, next_id + len(chunks))]
+        chunk_texts = [chunk for chunk, _ in chunks]
+        metadata = [metadata for _, metadata in chunks]
+        embeddings = self.embedding_model.embed_documents(chunk_texts)
         self.collection.add(
-            ids=ids,
+            ids=keys,
             embeddings=embeddings,
-            documents=chunks,
+            documents=chunk_texts,
+            metadatas=metadata,
         )
         next_id += len(chunks)
-        print(f"Added {len(chunks)} documents chunks to the vector database.")
+        print(f"✓ Added {len(chunks)} chunks and their metadata to the vector database.")
 
     def search(self, query: str, n_results: int = 5) -> Dict[str, Any]:
         """
