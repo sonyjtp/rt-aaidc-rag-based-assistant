@@ -18,11 +18,10 @@ class RAGAssistant:
 
 
         self.llm = initialize_llm()
-        print(f"✓ LLM {self.llm.model_name} initialized.")
+        print(f"✓ LLM : {self.llm.model_name}")
 
         # Initialize vector database
         self.vector_db = VectorDB()
-        print("✓ Vector database initialized.")
         self._build_chain()
 
         # TODO: Implement your RAG prompt template
@@ -34,7 +33,6 @@ class RAGAssistant:
         # # Create the chain
         # self.chain = self.prompt_template | self.llm | StrOutputParser()
         #
-        # print("RAG Assistant initialized successfully")
 
     def _build_chain(self):
         """Build the prompt template and LLM chain."""
@@ -65,14 +63,16 @@ class RAGAssistant:
             n_results: Number of relevant chunks to retrieve
 
         Returns:
-            Dictionary containing the answer and retrieved context
+            String answer from the LLM based on retrieved context
         """
-        llm_answer = ""
-        # TODO: Implement the RAG query pipeline
-        # HINT: Use self.vector_db.search() to retrieve relevant context chunks
-        # HINT: Combine the retrieved document chunks into a single context string
-        # HINT: Use self.chain.invoke() with context and question to generate the response
-        # HINT: Return a string answer from the LLM
+        search_results = self.vector_db.search(query=input, n_results=n_results)
 
-        # Your implementation here
-        return llm_answer
+        # Extract documents from search results
+        documents = search_results.get("documents", [])
+        context = "\n".join(documents)
+
+        response = self.chain.invoke({
+            "context": context,
+            "question": input
+        })
+        return response

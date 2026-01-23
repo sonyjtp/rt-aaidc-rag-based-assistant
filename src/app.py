@@ -1,5 +1,6 @@
 import os
-from typing import List
+
+os.environ['TOKENIZERS_PARALLELISM'] = 'false'
 
 from dotenv import load_dotenv
 
@@ -19,11 +20,9 @@ def main():
 
         # Initialize the RAG assistant
         assistant = RAGAssistant()
-        print("✓ RAG Assistant initialized successfully")
+        print("✓ RAG Assistant initialized\n")
         assistant.add_documents(documents)
-
         done = False
-
         while not done:
             question = input("Enter a question or 'quit' to exit: ")
             if question.lower() == "quit":

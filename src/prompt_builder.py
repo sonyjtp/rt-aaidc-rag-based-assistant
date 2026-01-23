@@ -19,20 +19,21 @@ def build_system_prompts() -> list[str]:
         system_prompts.append(
             f"You are {role.strip().lower()}.\n"
         )
-        print("✓ Added role.")
+        print("...added role.")
     if tone := system_prompt_config.get("style_or_tone"):
         system_prompts.append(
             f"Adopt the following style or tone:\n{tone}"
         )
-        print("✓ Added style/tone.")
+        print("...added style/tone.")
     if constraints := system_prompt_config.get("output_constraints"):
         system_prompts.append(
             f"Follow these output constraints:\n{constraints}"
         )
-        print("✓ Added output constraints.")
+        print("...added output constraints.")
     if output_format := system_prompt_config.get("output_format"):
         system_prompts.append(
             f"Use the following output format:\n{output_format}"
         )
-        print("✓ Added output format.")
+        print("...added output format.")
+    print("✓ System prompts built")
     return system_prompts

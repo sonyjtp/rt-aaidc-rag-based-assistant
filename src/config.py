@@ -71,6 +71,8 @@ MEMORY_STRATEGY_MAX_TOKENS = 1000
 PROMPT_CONFIG_FPATH = os.path.join(ROOT_DIR, "config", "prompt-config.yaml")
 PROMPT_CONFIG_NAME = "rag-assistant-system-prompt-formal"
 
+TOP_K=5
+
 # Vector Database Configuration
 VECTOR_DB_COLLECTION_NAME = "documents"
 VECTOR_DB_EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"

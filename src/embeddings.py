@@ -7,6 +7,8 @@ import os
 import torch
 from langchain_huggingface import HuggingFaceEmbeddings
 
+from config import VECTOR_DB_EMBEDDING_MODEL
+
 
 def initialize_embedding_model() -> HuggingFaceEmbeddings:
     """
@@ -19,9 +21,9 @@ def initialize_embedding_model() -> HuggingFaceEmbeddings:
         HuggingFaceEmbeddings instance configured for the detected device
     """
     device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
-    print(f"Device for embeddings: {device}")
+    print(f"Embedding model device: {device}")
 
-    model_name = os.getenv("EMBEDDING_MODEL", "sentence-transformers/all-mpnet-base-v2")
+    model_name = os.getenv(VECTOR_DB_EMBEDDING_MODEL, "sentence-transformers/all-mpnet-base-v2")
 
     return HuggingFaceEmbeddings(
         model_name=model_name,
