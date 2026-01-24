@@ -259,21 +259,25 @@ def query(self, question: str, n_results: int = 3) -> Dict[str, Any]:
 
    ```python
    from src.vectordb import VectorDB
+   from logger import logger
    vdb = VectorDB()
    chunks = vdb.chunk_documents("Your test text here...")
-   print(f"Created {len(chunks)} chunks")
+   logger.info(f"Created {len(chunks)} chunks")
    ```
 2. **Test document loading:**
 
    ```python
+   from logger import logger
    documents = [{"content": "Test document", "metadata": {"title": "Test"}}]
    vdb.add_documents(documents)
+   logger.info(f"Added {len(documents)} documents")
    ```
 3. **Test search:**
 
    ```python
+   from logger import logger
    results = vdb.search("your test query")
-   print(f"Found {len(results['documents'])} results")
+   logger.info(f"Found {len(results['documents'])} results")
    ```
 
 ### Test Full System
