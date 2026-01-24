@@ -11,6 +11,7 @@ from config import (
     CHROMA_DATABASE_ENV,
     CHROMA_COLLECTION_METADATA,
 )
+from logger import logger
 
 
 class ChromaDBClient:
@@ -30,7 +31,7 @@ class ChromaDBClient:
 
         # Initialize the CloudClient
         self.client = self._initialize_client()
-        print("✓ ChromaDB client initialized.")
+        logger.info("ChromaDB client initialized.")
 
     def _initialize_client(self) -> chromadb.api.ClientAPI:
         """
@@ -71,4 +72,4 @@ class ChromaDBClient:
             collection_name: Name of the collection to delete
         """
         self.client.delete_collection(name=collection_name)
-        print(f"✓ Collection '{collection_name}' deleted from ChromaDB")
+        logger.info(f"Collection '{collection_name}' deleted from ChromaDB")

@@ -6,6 +6,7 @@ from prompt_builder import build_system_prompts
 from vectordb import VectorDB
 from memory_manager import MemoryManager
 from config import RETRIEVAL_K_DEFAULT
+from logger import logger
 
 
 class RAGAssistant:
@@ -17,7 +18,7 @@ class RAGAssistant:
     def __init__(self):
         """Initialize the RAG assistant."""
         self.llm = initialize_llm()
-        print(f"✓ LLM : {self.llm.model_name}")
+        logger.info(f"LLM: {self.llm.model_name}")
 
         # Initialize vector database
         self.vector_db = VectorDB()
@@ -25,7 +26,7 @@ class RAGAssistant:
         # Initialize conversation memory
         self.memory_manager = MemoryManager(llm=self.llm)
         if self.memory_manager.memory:
-            print(f"✓ Memory manager initialized with strategy: {self.memory_manager.strategy}")
+            logger.info(f"Memory manager initialized with strategy: {self.memory_manager.strategy}")
 
         self._build_chain()
 
@@ -45,9 +46,9 @@ class RAGAssistant:
             ("system", "\n".join(build_system_prompts())),
             ("human", "Context from documents:\n{context}\n\nQuestion: {question}")
         ])
-        print("✓ Prompt template for RAG Assistant created from system prompts and for human input.")
+        logger.info("Prompt template for RAG Assistant created from system prompts and for human input.")
         self.chain = self.prompt_template | self.llm | StrOutputParser()
-        print("✓ Function chain with prompt template, LLM, and output parser built.")
+        logger.info("Function chain with prompt template, LLM, and output parser built.")
 
 
     def add_documents(self, documents:  list[str] |  list[dict[str, str]]) -> None:

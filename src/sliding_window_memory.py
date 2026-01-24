@@ -4,6 +4,7 @@ Summarizes conversation in fixed-size windows to manage token usage efficiently.
 """
 
 from collections import deque
+from logger import logger
 
 
 class SlidingWindowMemory:
@@ -54,12 +55,12 @@ class SlidingWindowMemory:
             response = self.llm.invoke(prompt)
             self.summary = response.content if hasattr(response, 'content') else str(response)
         except Exception as e:
-            print(f"⚠ Error summarizing window: {e}")
+            logger.error(f"Error summarizing window: {e}")
             self.summary = window_text
 
         # Clear window for next iteration
         self.messages.clear()
-        print(f"✓ Memory window shifted (summarized {self.window_size} messages)")
+        logger.info(f"Memory window shifted (summarized {self.window_size} messages)")
 
     def load_memory_variables(self, inputs: dict) -> dict:
         """Get current memory state including summary and recent messages."""

@@ -4,6 +4,8 @@ from pathlib import Path
 
 import yaml
 
+from logger import logger
+
 
 def load_documents(folder: str, file_extns: str | tuple[str, ...] = ".txt") -> list[dict[str, str]]:
     """
@@ -26,7 +28,7 @@ def load_documents(folder: str, file_extns: str | tuple[str, ...] = ".txt") -> l
     documents: list[dict[str, str]] = []
     for filename in os.listdir(folder):
         if not filename.endswith(file_extns):
-            print(f"Skipping {filename} as it does not match the specified extensions.")
+            logger.debug(f"Skipping {filename} as it does not match the specified extensions.")
             continue
         try:
             for doc in TextLoader(os.path.join(folder, filename), encoding="utf-8").load():
@@ -48,7 +50,7 @@ def load_documents(folder: str, file_extns: str | tuple[str, ...] = ".txt") -> l
                     'content': doc.page_content
                 })
         except IOError as e:
-            print(f"Error loading {filename}: {e}")
+            logger.error(f"Error loading {filename}: {e}")
     return documents
 
 

@@ -2,6 +2,7 @@
 import yaml
 from config import MEMORY_STRATEGIES_FPATH, MEMORY_STRATEGY
 from sliding_window_memory import SlidingWindowMemory
+from logger import logger
 
 
 class MemoryManager:
@@ -22,7 +23,7 @@ class MemoryManager:
                 strategies = yaml.safe_load(f)
             return strategies.get(self.strategy, {})
         except FileNotFoundError:
-            print(f"⚠ Memory strategies config not found at {MEMORY_STRATEGIES_FPATH}")
+            logger.warning(f"Memory strategies config not found at {MEMORY_STRATEGIES_FPATH}")
             return {}
 
     def _initialize_memory(self):
@@ -34,8 +35,7 @@ class MemoryManager:
         elif self.strategy == "conversation_buffer_memory":
             self._initialize_buffer_memory()
         else:
-            print(f"⚠ No memory strategy applied.")
-            self.memory = None
+            logger.warning(f"No memory strategy applied.")
 
     def _initialize_sliding_window_memory(self):
         """Initialize sliding window memory strategy."""
@@ -52,21 +52,23 @@ class MemoryManager:
         try:
             from langchain.memory import ConversationSummaryMemory
             memory_key = self.config.get("parameters", {}).get("memory_key", "chat_history")
+            logger.info("ConversationSummaryMemory initialized")
             self.memory = ConversationSummaryMemory(
                 llm=self.llm,
                 memory_key=memory_key
             )
         except ImportError:
-            print("⚠ ConversationSummaryMemory not available. Falling back to no memory.")
+            logger.warning("ConversationSummaryMemory not available. Falling back to no memory.")
             self.memory = None
 
     def _initialize_buffer_memory(self):
         """Lazy import and initialize ConversationBufferMemory."""
         try:
             from langchain.memory import ConversationBufferMemory
+            logger.info("ConversationBufferMemory initialized")
             self.memory = ConversationBufferMemory()
         except (ImportError, TypeError):
-            print("⚠ ConversationBufferMemory not available or parameters not supported. Falling back to no memory.")
+            logger.warning("ConversationBufferMemory not available or parameters not supported. Falling back to no memory.")
             self.memory = None
 
     def add_message(self, input_text: str, output_text: str) -> None:
@@ -78,7 +80,7 @@ class MemoryManager:
                     {"output": output_text}
                 )
             except Exception as e:
-                print(f"⚠ Error saving to memory: {e}")
+                logger.error(f"Error saving to memory: {e}")
 
     def get_memory_variables(self) -> dict:
         """Get current memory variables for the chain."""
@@ -86,6 +88,6 @@ class MemoryManager:
             try:
                 return self.memory.load_memory_variables({})
             except Exception as e:
-                print(f"⚠ Error loading memory variables: {e}")
+                logger.error(f"Error loading memory variables: {e}")
                 return {}
         return {}

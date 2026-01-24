@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from config import DATA_DIR
 from file_utils import load_documents
 from rag_assistant import RAGAssistant
+from logger import logger
 
 # Load environment variables
 load_dotenv()
@@ -112,7 +113,7 @@ if not st.session_state.initialization_attempted:
         st.session_state.initialized = True
     except Exception as e:
         st.session_state.initialized = False
-        print(f"❌ Error initializing assistant: {e}")
+        logger.error(f"Error initializing assistant: {e}")
         st.error("I'm sorry, an error occurred while initializing the assistant. Please try again.")
 
 # Sidebar configuration
@@ -235,7 +236,7 @@ if st.session_state.initialized:
             st.rerun()
         except Exception as e:
             status.update(label="❌ Error generating response", state="error")
-            print(f"❌ Error generating response: {e}")
+            logger.error(f"Error generating response: {e}")
             st.error("I'm sorry, an error occurred while processing your question. Please try again.")
 else:
     if not st.session_state.initialization_attempted:
