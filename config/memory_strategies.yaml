@@ -1,0 +1,27 @@
+# memory_strategies.yaml
+# Configuration for different conversation memory strategies
+
+
+conversation_buffer_memory:
+  description: "Stores all conversation history without summarization"
+  enabled: false
+  strategy_type: "buffer"
+  parameters:
+    memory_key: "chat_history"
+
+summarization:
+  description: "Summarizes entire conversation history to save tokens"
+  enabled: false
+  strategy_type: "summarization"
+  parameters:
+    memory_key: "chat_history"
+
+summarization_sliding_window:
+  description: "Summarizes only the last N messages using a sliding window approach"
+  enabled: true
+  strategy_type: "summarization_sliding_window"
+  parameters:
+    memory_key: "chat_history"
+    window_size: 30
+    summarization_prompt: "Summarize the key points from this conversation segment in a few sentences."
+
