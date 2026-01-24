@@ -200,11 +200,13 @@ if st.session_state.initialized:
             "role": "user",
             "content": user_input
         })
+        logger.debug(f"User question: {user_input}")
 
         # Get assistant response
         status = st.status("🔍 Searching documents and generating response...", expanded=True)
         try:
             response = st.session_state.assistant.invoke(user_input)
+            logger.debug(f"Agent response received: {response[:100]}...")  # Log first 100 chars
 
             # Clean up the response - remove markdown headers and separators
             lines = response.split('\n')
@@ -227,6 +229,7 @@ if st.session_state.initialized:
                 skip_next = False
 
             cleaned_response = '\n'.join(cleaned_lines).strip()
+            logger.debug(f"Cleaned response: {cleaned_response[:100]}...")  # Log first 100 chars
 
             st.session_state.chat_history.append({
                 "role": "assistant",
