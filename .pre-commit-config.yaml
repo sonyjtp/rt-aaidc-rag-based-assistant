@@ -31,8 +31,4 @@ repos:
     hooks:
       - id: pylint
         args: [ "--fail-under=9.5" ]
-        additional_dependencies: [
-          "langchain", "chromadb", "pyyaml", "python-dotenv", "langchain-openai",
-          "langchain-groq", "langchain-google-genai", "langchain-community",
-          "langchain-text-splitters", "langchain-huggingface"
-        ]
+        additional_dependencies: ["langchain", "chromadb", "pyyaml", "python-dotenv"]
