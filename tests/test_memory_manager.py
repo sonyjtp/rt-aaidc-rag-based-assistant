@@ -260,9 +260,10 @@ class TestMemoryExceptionHandling:
                     manager = MemoryManager(llm=mock_llm)
                     manager.memory = mock_memory
 
-                    # Should raise or handle exception
-                    with pytest.raises(Exception):
-                        manager.add_message(input_text="Test", output_text="Test")
+                    # Memory manager catches exceptions gracefully and logs them
+                    # Should NOT raise, but call save_context
+                    manager.add_message(input_text="Test", output_text="Test")
+                    mock_memory.save_context.assert_called_once()
 
     def test_config_load_error(self):
         """Test handling of configuration load errors."""
@@ -270,10 +271,15 @@ class TestMemoryExceptionHandling:
 
         with patch('src.memory_manager.MEMORY_STRATEGY', 'invalid'):
             with patch('src.memory_manager.MEMORY_STRATEGIES_FPATH', '/nonexistent'):
+                # Memory manager handles FileNotFoundError gracefully and returns empty dict
                 with patch('builtins.open', side_effect=FileNotFoundError("Config not found")):
-                    # Should raise or handle exception
-                    with pytest.raises(Exception):
-                        MemoryManager(llm=mock_llm)
+                    # Should NOT raise - it catches the exception
+                    manager = MemoryManager(llm=mock_llm)
+
+                    # Manager should be created even if config fails
+                    assert manager is not None
+                    # Config should be empty dict (fallback)
+                    assert manager.config == {}
 
     def test_invalid_strategy(self):
         """Test handling of invalid memory strategy."""
