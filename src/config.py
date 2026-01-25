@@ -108,15 +108,15 @@ RETRIEVAL_K_DEFAULT = 3
 
 # Memory Strategy Configuration
 MEMORY_STRATEGIES_FPATH = os.path.join(ROOT_DIR, "config", "memory_strategies.yaml")
-MEMORY_STRATEGY = "summarization_sliding_window"  # Options: summarization_sliding_window, summarization, conversation_buffer_memory, none
+# Options: summarization_sliding_window, summarization, conversation_buffer_memory, none
+MEMORY_STRATEGY = "summarization_sliding_window"
 
 # Reasoning Strategy Configuration
 REASONING_STRATEGIES_FPATH = os.path.join(ROOT_DIR, "config", "reasoning_strategies.yaml")
-REASONING_STRATEGY = "rag_enhanced_reasoning" # Options: rag_enhanced_reasoning, simple_few_shot, none
+# Options: rag_enhanced_reasoning, simple_few_shot, none
+REASONING_STRATEGY = "rag_enhanced_reasoning"
 
 # Prompt Configuration
 PROMPT_CONFIG_FPATH = os.path.join(ROOT_DIR, "config", "prompt-config.yaml")
 PROMPT_CONFIG_NAME = "rag-assistant-system-prompt-formal"
-
-
 

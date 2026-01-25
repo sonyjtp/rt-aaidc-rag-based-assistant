@@ -1,8 +1,31 @@
-# src/memory_manager.py
-import yaml
+"""Memory manager for the RAG assistant.
+
+This module provides MemoryManager which selects and initializes a
+conversation memory strategy based on configuration. It supports a
+sliding-window implementation and falls back gracefully when optional
+dependencies (PyYAML, langchain) are not available.
+"""
+
 from config import MEMORY_STRATEGIES_FPATH, MEMORY_STRATEGY
 from sliding_window_memory import SlidingWindowMemory
 from logger import logger
+
+# Make PyYAML optional to avoid import errors in lightweight environments
+try:
+    import yaml  # type: ignore
+except Exception:  # pragma: no cover - optional dependency
+    yaml = None
+
+# Try to import optional langchain memory classes at module import time so
+# we avoid import-outside-toplevel lint warnings. If unavailable, set to None.
+try:
+    from langchain.memory import (
+        ConversationSummaryMemory,
+        ConversationBufferMemory,
+    )
+except Exception:  # pragma: no cover - optional dependency
+    ConversationSummaryMemory = None
+    ConversationBufferMemory = None
 
 
 class MemoryManager:
@@ -17,13 +40,23 @@ class MemoryManager:
         self._initialize_memory()
 
     def _load_memory_strategy_config(self):
-        """Load memory strategy configuration from YAML file."""
+        """Load memory strategy configuration from YAML file.
+
+        If PyYAML is not installed, return an empty configuration and log a
+        warning so the application can continue running without memory.
+        """
+        if yaml is None:
+            logger.warning("PyYAML not installed; memory strategies unavailable.")
+            return {}
+
         try:
-            with open(MEMORY_STRATEGIES_FPATH, 'r') as f:
-                strategies = yaml.safe_load(f)
+            with open(MEMORY_STRATEGIES_FPATH, "r", encoding="utf-8") as f:
+                strategies = yaml.safe_load(f) or {}
             return strategies.get(self.strategy, {})
         except FileNotFoundError:
-            logger.warning(f"Memory strategies config not found at {MEMORY_STRATEGIES_FPATH}")
+            logger.warning(
+                "Memory strategies config not found at %s", MEMORY_STRATEGIES_FPATH
+            )
             return {}
 
     def _initialize_memory(self):
@@ -35,59 +68,70 @@ class MemoryManager:
         elif self.strategy == "conversation_buffer_memory":
             self._initialize_buffer_memory()
         else:
-            logger.warning(f"No memory strategy applied.")
+            logger.warning("No memory strategy applied.")
 
     def _initialize_sliding_window_memory(self):
         """Initialize sliding window memory strategy."""
         window_size = self.config.get("parameters", {}).get("window_size", 20)
-        memory_key = self.config.get("parameters", {}).get("memory_key", "chat_history")
+        memory_key = self.config.get("parameters", {}).get(
+            "memory_key", "chat_history"
+        )
         self.memory = SlidingWindowMemory(
             llm=self.llm,
             window_size=window_size,
-            memory_key=memory_key
+            memory_key=memory_key,
         )
 
     def _initialize_summarization_memory(self):
-        """Lazy import and initialize ConversationSummaryMemory."""
-        try:
-            from langchain.memory import ConversationSummaryMemory
-            memory_key = self.config.get("parameters", {}).get("memory_key", "chat_history")
-            logger.info("ConversationSummaryMemory initialized")
-            self.memory = ConversationSummaryMemory(
-                llm=self.llm,
-                memory_key=memory_key
+        """Initialize ConversationSummaryMemory if available."""
+        if ConversationSummaryMemory is None:
+            logger.warning(
+                "ConversationSummaryMemory not available. Falling back to no memory."
             )
-        except ImportError:
-            logger.warning("ConversationSummaryMemory not available. Falling back to no memory.")
             self.memory = None
+            return
+
+        memory_key = self.config.get("parameters", {}).get("memory_key", "chat_history")
+        logger.info("ConversationSummaryMemory initialized")
+        self.memory = ConversationSummaryMemory(
+            llm=self.llm,
+            memory_key=memory_key,
+        )
 
     def _initialize_buffer_memory(self):
-        """Lazy import and initialize ConversationBufferMemory."""
+        """Initialize ConversationBufferMemory if available."""
+        if ConversationBufferMemory is None:
+            logger.warning(
+                "ConversationBufferMemory not available. Falling back to no memory."
+            )
+            self.memory = None
+            return
+
+        logger.info("ConversationBufferMemory initialized")
         try:
-            from langchain.memory import ConversationBufferMemory
-            logger.info("ConversationBufferMemory initialized")
             self.memory = ConversationBufferMemory()
-        except (ImportError, TypeError):
-            logger.warning("ConversationBufferMemory not available or parameters not supported. Falling back to no memory.")
+        except TypeError:
+            # Some langchain versions require different ctor args; treat this as
+            # unavailability for our purposes.
+            logger.warning(
+                "ConversationBufferMemory parameters not supported. Falling back to no memory."
+            )
             self.memory = None
 
     def add_message(self, input_text: str, output_text: str) -> None:
         """Add a message pair to memory."""
         if self.memory:
             try:
-                self.memory.save_context(
-                    {"input": input_text},
-                    {"output": output_text}
-                )
-            except Exception as e:
-                logger.error(f"Error saving to memory: {e}")
+                self.memory.save_context({"input": input_text}, {"output": output_text})
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                logger.error("Error saving to memory: %s", e)
 
     def get_memory_variables(self) -> dict:
         """Get current memory variables for the chain."""
         if self.memory:
             try:
                 return self.memory.load_memory_variables({})
-            except Exception as e:
-                logger.error(f"Error loading memory variables: {e}")
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                logger.error("Error loading memory variables: %s", e)
                 return {}
         return {}

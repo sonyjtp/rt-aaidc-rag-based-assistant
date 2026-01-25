@@ -1,19 +1,31 @@
 """
 Logging configuration for the RAG-based AI assistant.
-Uses loguru for clean, structured logging.
+Uses loguru when available for structured logging; falls back to the
+standard library logging module if loguru is not installed.
 """
 
 import os
 import sys
 from pathlib import Path
-from loguru import logger
+
+# Optional import of loguru; provide a stdlib fallback when missing.
+try:
+    from loguru import logger as _loguru_logger  # type: ignore
+except Exception:  # pragma: no cover - optional dependency
+    _loguru_logger = None
+
+# Optional dotenv loader; not required for environments without .env
+try:
+    from dotenv import load_dotenv  # type: ignore
+except Exception:  # pragma: no cover - optional dependency
+    def load_dotenv(*_args, **_kwargs):
+        return False
 
 # Load .env file to ensure LOG_LEVEL is set before logger initialization
-from dotenv import load_dotenv
 env_file = Path(__file__).parent.parent / ".env"
 load_dotenv(env_file)
 
-# Configure logger
+# Configure logger destination paths
 LOG_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "logs")
 os.makedirs(LOG_DIR, exist_ok=True)
 
@@ -21,11 +33,8 @@ LOG_FILE = os.path.join(LOG_DIR, "rag_assistant.log")
 DEBUG_FILE = os.path.join(LOG_DIR, "debug.log")
 
 # Get log level from environment variable (default: INFO)
-# Try multiple ways to ensure we get the value
 LOG_LEVEL = (
-    os.getenv("LOG_LEVEL") or
-    os.environ.get("LOG_LEVEL") or
-    "INFO"
+    os.getenv("LOG_LEVEL") or os.environ.get("LOG_LEVEL") or "INFO"
 ).upper()
 
 # Validate log level
@@ -33,57 +42,94 @@ valid_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 if LOG_LEVEL not in valid_levels:
     LOG_LEVEL = "INFO"
 
-# Remove default handler
-logger.remove()
+# If loguru is available, configure it; otherwise use stdlib logging
+if _loguru_logger is not None:
+    logger = _loguru_logger
 
-# Add console handler to stderr with immediate flush
-logger.add(
-    sys.stderr,
-    format="<level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
-    colorize=True,
-    level=LOG_LEVEL,
-    enqueue=False  # Disable queue to ensure immediate output
-)
+    # Remove default handlers and add ours
+    logger.remove()
 
-# Add main file handler with rotation
-logger.add(
-    LOG_FILE,
-    format="{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {name}:{function}:{line} - {message}",
-    rotation="10 MB",
-    retention="7 days",
-    level=LOG_LEVEL,
-    enqueue=False  # Disable queue for immediate writes
-)
-
-# Add dedicated debug file handler (always DEBUG level for troubleshooting)
-if LOG_LEVEL == "DEBUG":
-    logger.add(
-        DEBUG_FILE,
-        format="<level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
-        colorize=True,  # Enable colors in the file
-        rotation="5 MB",
-        retention="3 days",
-        level="DEBUG",
-        enqueue=False  # Disable queue for immediate writes
+    console_fmt = (
+        "<level>{level: <8}</level> | "
+        "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - "
+        "<level>{message}</level>"
     )
 
+    logger.add(
+        sys.stderr,
+        format=console_fmt,
+        colorize=True,
+        level=LOG_LEVEL,
+        enqueue=False,
+    )
+
+    file_fmt = ("{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | "
+                "{name}:{function}:{line} - {message}")
+
+    logger.add(
+        LOG_FILE,
+        format=file_fmt,
+        rotation="10 MB",
+        retention="7 days",
+        level=LOG_LEVEL,
+        enqueue=False,
+    )
+
+    if LOG_LEVEL == "DEBUG":
+        logger.add(
+            DEBUG_FILE,
+            format=console_fmt,
+            colorize=True,
+            rotation="5 MB",
+            retention="3 days",
+            level="DEBUG",
+            enqueue=False,
+        )
+else:
+    # stdlib logging fallback
+    import logging
+    from logging.handlers import RotatingFileHandler
+
+    logger = logging.getLogger("rag_assistant")
+    logger.setLevel(getattr(logging, LOG_LEVEL, logging.INFO))
+
+    # Clear existing handlers
+    logger.handlers = []
+
+    console_fmt = logging.Formatter(
+        "%(levelname)-8s | %(name)s:%(funcName)s:%(lineno)s - %(message)s"
+    )
+    console_handler = logging.StreamHandler(sys.stderr)
+    console_handler.setLevel(getattr(logging, LOG_LEVEL, logging.INFO))
+    console_handler.setFormatter(console_fmt)
+    logger.addHandler(console_handler)
+
+    file_handler = RotatingFileHandler(
+        LOG_FILE, maxBytes=10 * 1024 * 1024, backupCount=7
+    )
+    file_fmt = logging.Formatter(
+        "%(asctime)s | %(levelname)-8s | %(name)s:%(funcName)s:%(lineno)s - %(message)s",
+        "%Y-%m-%d %H:%M:%S",
+    )
+    file_handler.setFormatter(file_fmt)
+    file_handler.setLevel(getattr(logging, LOG_LEVEL, logging.INFO))
+    logger.addHandler(file_handler)
+
+    if LOG_LEVEL == "DEBUG":
+        debug_handler = RotatingFileHandler(
+            DEBUG_FILE, maxBytes=5 * 1024 * 1024, backupCount=3
+        )
+        debug_handler.setLevel(logging.DEBUG)
+        debug_handler.setFormatter(console_fmt)
+        logger.addHandler(debug_handler)
+
 # Log initialization info
-logger.debug(f"Logger initialized with LOG_LEVEL: {LOG_LEVEL}")
-logger.debug(f"Log files location: {LOG_DIR}")
+try:
+    logger.debug("Logger initialized with LOG_LEVEL: %s", LOG_LEVEL)
+    logger.debug("Log files location: %s", LOG_DIR)
+except Exception:
+    # If the logger implementation doesn't support the same API, ignore
+    pass
 
 __all__ = ["logger"]
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 

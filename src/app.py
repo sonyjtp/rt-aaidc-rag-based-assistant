@@ -1,3 +1,4 @@
+"""Main entry point for the RAG Assistant CLI application."""
 import os
 
 os.environ['TOKENIZERS_PARALLELISM'] = 'false'
@@ -32,7 +33,7 @@ def main():
                 result = assistant.invoke(question)
                 logger.info(result)
 
-    except Exception as e:
+    except (FileNotFoundError, ValueError, RuntimeError) as e:
         logger.error(f"Error running RAG assistant: {e}")
         logger.error("I'm sorry, an error occurred while running the assistant. Please try again.")
 

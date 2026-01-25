@@ -16,8 +16,10 @@ from logger import logger
 
 class ChromaDBClient:
     """
-    A wrapper around ChromaDB CloudClient for managing vector database connections and collections.
-    Handles initialization and collection management with proper configuration from environment variables.
+    Wrapper around ChromaDB CloudClient for managing vector database connections.
+
+    Handles initialization and collection management with proper configuration from
+    environment variables.
     """
 
     def __init__(self):
