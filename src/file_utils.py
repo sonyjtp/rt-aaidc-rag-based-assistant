@@ -11,9 +11,7 @@ except ImportError:  # pragma: no cover - optional dependency
     yaml = None
 
 try:
-    from langchain_community.document_loaders import (  # type: ignore
-        TextLoader,
-    )
+    from langchain_community.document_loaders import TextLoader  # type: ignore
 except ImportError:  # pragma: no cover - optional dependency
     TextLoader = None
 
@@ -54,9 +52,11 @@ def _get_text_loader(path: str, encoding: str = "utf-8"):
     return _SimpleTextLoader(path, encoding=encoding)
 
 
-def load_documents(folder: str, file_extns: str | tuple[str, ...] = ".txt") -> list[dict[str, str]]:
+def load_documents(
+    folder: str, file_extensions: str | tuple[str, ...] = ".txt"
+) -> list[dict[str, str]]:
     """
-    Load documents from text files using a TextLoader-like interface.
+    Load documents from files using a TextLoader-like interface.
 
     The function reads all files in `folder` with matching extensions and
     returns a list of document dictionaries with keys: 'filename', 'title',
@@ -65,9 +65,9 @@ def load_documents(folder: str, file_extns: str | tuple[str, ...] = ".txt") -> l
     """
     documents: list[dict[str, str]] = []
     for filename in os.listdir(folder):
-        if not filename.endswith(file_extns):
+        if not filename.endswith(file_extensions):
             # keep this message short to satisfy line length rules
-            logger.debug("Skipping %s: extension mismatch", filename)
+            logger.debug(f"Skipping {filename}: extension mismatch")
             continue
         path = os.path.join(folder, filename)
         try:
@@ -82,18 +82,22 @@ def load_documents(folder: str, file_extns: str | tuple[str, ...] = ".txt") -> l
                 title = content_lines[0] if content_lines else filename
 
                 # Tags: take second non-empty line if it starts with "Tags:"
-                tags = ""
-                if len(content_lines) > 1 and content_lines[1].startswith("Tags:"):
-                    tags = content_lines[1].replace("Tags:", "").strip()
+                tags = (
+                    content_lines[1].replace("Tags:", "").strip()
+                    if len(content_lines) > 1 and content_lines[1].startswith("Tags:")
+                    else ""
+                )
 
-                documents.append({
-                    "filename": filename,
-                    "title": title,
-                    "tags": tags,
-                    "content": doc.page_content,
-                })
+                documents.append(
+                    {
+                        "filename": filename,
+                        "title": title,
+                        "tags": tags,
+                        "content": doc.page_content,
+                    }
+                )
         except IOError as e:
-            logger.error("Error loading %s: %s", filename, e)
+            logger.error(f"Error loading {filename}: {e}")
     return documents
 
 

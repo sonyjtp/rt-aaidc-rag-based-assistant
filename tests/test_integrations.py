@@ -2,10 +2,10 @@
 Integration tests for ChromaDB client, LLM utilities, and Vector Database.
 Tests external service integrations and core database operations.
 """
-
 from unittest.mock import MagicMock, patch
 
 import pytest
+from chromadb.errors import InvalidArgumentError
 
 from src.chroma_client import ChromaDBClient
 from src.llm_utils import initialize_llm
@@ -244,7 +244,7 @@ class TestVectorDBChunking:
         mock_embedding_model.model_name = "test-model"
         mock_embedding.return_value = mock_embedding_model
 
-        vdb = VectorDB(chunk_size=100, chunk_overlap=20)
+        vdb = VectorDB()
 
         # Test chunking with string documents
         documents = ["This is a test document with some content. " * 10]
@@ -269,7 +269,7 @@ class TestVectorDBChunking:
         mock_embedding_model.model_name = "test-model"
         mock_embedding.return_value = mock_embedding_model
 
-        vdb = VectorDB(chunk_size=100, chunk_overlap=20)
+        vdb = VectorDB()
 
         # Test chunking with dict documents
         documents = [
@@ -454,3 +454,135 @@ class TestVectorDBDeduplication:
 
         # All chunks should be kept
         assert len(filtered) == 2
+
+
+# ============================================================================
+# VECTORDB SEARCH ERROR HANDLING TESTS
+# ============================================================================
+
+
+class TestVectorDBSearchErrorHandling:
+    """Test error handling in VectorDB search method."""
+
+    # pylint: disable=missing-function-docstring
+
+    @patch("src.vectordb.ChromaDBClient")
+    @patch("src.vectordb.initialize_embedding_model")
+    def test_search_handles_embedding_dimension_mismatch(
+        self, mock_embedding, mock_chroma
+    ):
+        """Test that search handles embedding dimension mismatch gracefully."""
+
+        mock_collection = MagicMock()
+        mock_chroma.return_value.get_or_create_collection.return_value = mock_collection
+        mock_embedding_model = MagicMock()
+        mock_embedding_model.model_name = "test-model"
+        mock_embedding.return_value = mock_embedding_model
+
+        # Mock the embedding query to return valid embedding
+        mock_embedding_model.embed_query.return_value = [0.1, 0.2, 0.3]
+
+        # Mock the collection query to raise InvalidArgumentError for dimension mismatch
+        error_msg = "Collection expecting embedding with dimension of 768, got 384"
+        mock_collection.query.side_effect = InvalidArgumentError(error_msg)
+
+        vdb = VectorDB()
+        result = vdb.search(query="test query")
+
+        # Should return empty results gracefully
+        assert result["documents"] == []
+        assert result["metadatas"] == []
+        assert result["distances"] == []
+        assert result["ids"] == []
+
+    @patch("src.vectordb.ChromaDBClient")
+    @patch("src.vectordb.initialize_embedding_model")
+    def test_search_reraises_other_invalid_argument_errors(
+        self, mock_embedding, mock_chroma
+    ):
+        """Test that search re-raises non-dimension-mismatch InvalidArgumentError."""
+
+        mock_collection = MagicMock()
+        mock_chroma.return_value.get_or_create_collection.return_value = mock_collection
+        mock_embedding_model = MagicMock()
+        mock_embedding_model.model_name = "test-model"
+        mock_embedding.return_value = mock_embedding_model
+
+        # Mock the embedding query
+        mock_embedding_model.embed_query.return_value = [0.1, 0.2, 0.3]
+
+        # Mock the collection query to raise a different InvalidArgumentError
+        error_msg = "Invalid query parameter"
+        mock_collection.query.side_effect = InvalidArgumentError(error_msg)
+
+        vdb = VectorDB()
+
+        # Should re-raise the error since it's not a dimension mismatch
+        with pytest.raises(InvalidArgumentError, match="Invalid query parameter"):
+            vdb.search(query="test query")
+
+    @patch("src.vectordb.ChromaDBClient")
+    @patch("src.vectordb.initialize_embedding_model")
+    def test_search_successful_with_correct_dimensions(
+        self, mock_embedding, mock_chroma
+    ):
+        """Test that search works correctly when dimensions match."""
+        mock_collection = MagicMock()
+        mock_chroma.return_value.get_or_create_collection.return_value = mock_collection
+        mock_embedding_model = MagicMock()
+        mock_embedding_model.model_name = "test-model"
+        mock_embedding.return_value = mock_embedding_model
+
+        # Mock the embedding query
+        mock_embedding_model.embed_query.return_value = [0.1, 0.2, 0.3]
+
+        # Mock successful search results
+        mock_collection.query.return_value = {
+            "documents": [["Document 1", "Document 2"]],
+            "metadatas": [[{"title": "Doc1"}, {"title": "Doc2"}]],
+            "distances": [[0.1, 0.2]],
+            "ids": [["id1", "id2"]],
+        }
+
+        vdb = VectorDB()
+        result = vdb.search(query="test query", n_results=2)
+
+        # Verify successful search
+        assert len(result["documents"]) == 2
+        assert result["documents"][0] == "Document 1"
+        assert result["documents"][1] == "Document 2"
+        assert result["metadatas"][0]["title"] == "Doc1"
+        assert result["ids"][0] == "id1"
+
+    @patch("src.vectordb.ChromaDBClient")
+    @patch("src.vectordb.initialize_embedding_model")
+    def test_search_logs_dimension_mismatch_error(self, mock_embedding, mock_chroma):
+        """Test that search logs helpful error message for dimension mismatch."""
+
+        mock_collection = MagicMock()
+        mock_chroma.return_value.get_or_create_collection.return_value = mock_collection
+        mock_embedding_model = MagicMock()
+        mock_embedding_model.model_name = "test-model"
+        mock_embedding.return_value = mock_embedding_model
+
+        # Mock the embedding query
+        mock_embedding_model.embed_query.return_value = [0.1, 0.2, 0.3]
+
+        # Mock the collection query to raise InvalidArgumentError
+        error_msg = "Collection expecting embedding with dimension of 768, got 384"
+        mock_collection.query.side_effect = InvalidArgumentError(error_msg)
+
+        vdb = VectorDB()
+
+        with patch("src.vectordb.logger") as mock_logger:
+            result = vdb.search(query="test query")
+
+            # Verify error was logged with helpful message
+            mock_logger.error.assert_called_once()
+            error_call = mock_logger.error.call_args[0][0]
+            assert "Embedding dimension mismatch" in error_call
+            assert "VECTOR_DB_EMBEDDING_MODEL" in error_call
+            assert "config.py" in error_call
+
+            # Result should still be empty
+            assert result["documents"] == []

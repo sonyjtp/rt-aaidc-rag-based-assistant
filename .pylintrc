@@ -6,8 +6,19 @@ ignore=CVS
 # Only show warnings with the listed confidence levels. Leave empty to show all.
 # Valid levels: HIGH, INFERENCE, INFERENCE_ONLY, UNDEFINED.
 confidence=
+# Disable logging-fstring-interpolation globally (f-strings needed for proper variable interpolation)
+disable=logging-fstring-interpolation
 
-[REPORTS]
+[DESIGN]
+# Maximum number of arguments for function / method
+max-args=5
+
+[EXCEPTIONS]
+# Exceptions configuration (currently using defaults)
+
+[VARIABLES]
+# A regular expression matching the name of dummy variables (i.e. expected to not be used).
+dummy-variables-rgx=_+$|(_[a-zA-Z0-9_]*[a-zA-Z0-9]+?$)|^ignored_|^unused_
 # Set the output format. Available formats are text, parseable, colorized, json
 # and msvs (visual studio).You can also give a reporter class e.g. mypackage.
 # mymodule.MyReporterClass --output-format=parseable

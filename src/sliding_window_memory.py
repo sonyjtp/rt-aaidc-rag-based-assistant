@@ -60,16 +60,16 @@ class SlidingWindowMemory:
             AttributeError,
             ValueError,
         ) as e:  # pylint: disable=broad-exception-caught
-            logger.error("Error summarizing window: %s", e)
+            logger.error(
+                f"Error summarizing window: {e}",
+            )
             self.summary = window_text
 
         # Clear window for next iteration
         self.messages.clear()
-        logger.info("Memory window shifted (summarized %d messages)", self.window_size)
+        logger.info(f"Memory window shifted (summarized  {self.window_size} messages)")
 
-    def load_memory_variables(
-        self, inputs: dict
-    ) -> dict:  # pylint: disable=unused-argument
+    def load_memory_variables(self) -> dict:  # pylint: disable=unused-argument
         """Get current memory state including summary and recent messages."""
         recent_messages = "\n".join(
             [

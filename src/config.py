@@ -87,7 +87,7 @@ VECTOR_DB_COLLECTION_NAME = "documents"
 COLLECTION_NAME_DEFAULT = "rag_documents"
 
 # Embedding Model
-VECTOR_DB_EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+VECTOR_DB_EMBEDDING_MODEL = "sentence-transformers/all-mpnet-base-v2"
 
 
 # ============================================================================
@@ -97,9 +97,22 @@ VECTOR_DB_EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 # Text Chunking Configuration
 CHUNK_SIZE_DEFAULT = 500
 CHUNK_OVERLAP_DEFAULT = 100
+TEXT_SPLITTER_SEPARATORS = ["\n\n", "\n", ". ", " ", ""]
 
 # Retrieval Configuration
 RETRIEVAL_K_DEFAULT = 3
+DISTANCE_THRESHOLD_DEFAULT = 0.35  # Maximum distance (lower = higher similarity)
+
+# Meta-question keywords that don't require high document similarity
+META_QUESTION_KEYWORDS = [
+    "what topics",
+    "what do you know",
+    "what can you",
+    "what documents",
+    "what information",
+    "what subjects",
+    "capabilities",
+]
 
 
 # ============================================================================

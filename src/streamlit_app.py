@@ -8,6 +8,7 @@ from config import DATA_DIR
 from file_utils import load_documents
 from logger import logger
 from rag_assistant import RAGAssistant
+from ui_utils import configure_page, load_custom_styles
 
 # Set tokenizers parallelism to avoid warnings
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -15,86 +16,9 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 # Load environment variables
 load_dotenv()
 
-# Page configuration
-st.set_page_config(
-    page_title="RAG Chatbot",
-    page_icon="🤖",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
-
-# Custom CSS for better styling
-st.markdown(
-    """
-    <style>
-    body {
-        background-color: #1e1e1e;
-        color: #ffffff;
-    }
-    .stApp {
-        background-color: #1e1e1e;
-        color: #ffffff;
-    }
-    .stText, h1, h2, h3, h4, h5, h6, p, div {
-        color: #ffffff !important;
-    }
-    .chat-message {
-        padding: 1.5rem;
-        border-radius: 0.5rem;
-        margin-bottom: 1rem;
-        display: flex;
-        gap: 1rem;
-        color: #ffffff;
-    }
-    .user-message {
-        background-color: #2c3e50;
-        border-left: 4px solid #3498db;
-        color: #ffffff;
-    }
-    .assistant-message {
-        background-color: #34495e;
-        border-left: 4px solid #2ecc71;
-        color: #ffffff;
-    }
-    .title-text {
-        text-align: center;
-        color: #3498db;
-    }
-    .stTextInput > div > div > input {
-        background-color: #2c3e50 !important;
-        color: #ffffff !important;
-        border: 1px solid #3498db !important;
-    }
-    .stTextInput > label {
-        color: #ffffff !important;
-    }
-    .stButton > button {
-        background-color: #3498db !important;
-        color: #ffffff !important;
-        border: none !important;
-    }
-    .stButton > button:hover {
-        background-color: #2980b9 !important;
-    }
-    .stMarkdown {
-        color: #ffffff !important;
-    }
-    .stDivider {
-        background-color: #3498db !important;
-    }
-    .stSidebar {
-        background-color: #252d36 !important;
-    }
-    .stSidebar .stText, .stSidebar h1, .stSidebar h2, .stSidebar h3 {
-        color: #ffffff !important;
-    }
-    .stInfo, .stSuccess, .stWarning, .stError {
-        color: #ffffff !important;
-    }
-    </style>
-""",
-    unsafe_allow_html=True,
-)
+# Configure page and load styles
+configure_page()
+load_custom_styles()
 
 # Initialize session state
 if "assistant" not in st.session_state:
@@ -109,7 +33,7 @@ if not st.session_state.initialization_attempted:
     st.session_state.initialization_attempted = True
     try:
         # Load documents silently without displaying status
-        documents = load_documents(folder=DATA_DIR, file_extns=".txt")
+        documents = load_documents(folder=DATA_DIR, file_extensions=".txt")
 
         # Initialize the RAG assistant
         st.session_state.assistant = RAGAssistant()
@@ -118,7 +42,7 @@ if not st.session_state.initialization_attempted:
         st.session_state.initialized = True
     except Exception as e:  # pylint: disable=broad-exception-caught
         st.session_state.initialized = False
-        logger.error("Error initializing assistant: %s", e)
+        logger.error(f"Error initializing assistant: {e}")
         st.error("Error initializing assistant. Please try again.")
 
 # Sidebar configuration
@@ -212,7 +136,7 @@ if st.session_state.initialized:
     if send_button and user_input:
         # Add user message to history
         st.session_state.chat_history.append({"role": "user", "content": user_input})
-        logger.debug("User question: %s", user_input)
+        logger.debug(f"User question: {user_input}")
 
         # Get assistant response
         status = st.status(
@@ -220,7 +144,7 @@ if st.session_state.initialized:
         )
         try:
             response = st.session_state.assistant.invoke(user_input)
-            logger.debug("Agent response received: %s", response[:100])
+            logger.debug(f"Agent response received: {response[:100]}")
 
             # Clean up the response - remove markdown headers and separators
             lines = response.split("\n")
@@ -243,19 +167,19 @@ if st.session_state.initialized:
                     cleaned_lines.append(line)
                 skip_next = False
 
-            cleaned_response = "\n".join(
+            CLEANED_RESPONSE = "\n".join(
                 cleaned_lines
             ).strip()  # pylint: disable=invalid-name
-            logger.debug("Cleaned response: %s", cleaned_response[:100])
+            logger.debug(f"Cleaned response: {CLEANED_RESPONSE[:100]}")
 
             st.session_state.chat_history.append(
-                {"role": "assistant", "content": cleaned_response}
+                {"role": "assistant", "content": CLEANED_RESPONSE}
             )
             status.update(label="✅ Response generated!", state="complete")
             st.rerun()
         except Exception as e:  # pylint: disable=broad-exception-caught
             status.update(label="❌ Error generating response", state="error")
-            logger.error("Error generating response: %s", e)
+            logger.error(f"Error generating response: {e}")
             st.error("Error processing your question. Please try again.")
 else:
     if not st.session_state.initialization_attempted:

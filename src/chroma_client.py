@@ -76,4 +76,4 @@ class ChromaDBClient:
             collection_name: Name of the collection to delete
         """
         self.client.delete_collection(name=collection_name)
-        logger.info("Collection '%s' deleted from ChromaDB", collection_name)
+        logger.info(f"Collection {collection_name} deleted from ChromaDB")

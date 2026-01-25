@@ -361,3 +361,260 @@ class TestRAGAssistantExceptionHandling:
         # Should raise exception
         with pytest.raises(Exception):
             assistant.invoke("Test query")
+
+
+# ============================================================================
+# META-QUESTION HANDLING TESTS
+# ============================================================================
+
+
+class TestMetaQuestionHandling:
+    """Test how RAGAssistant handles meta-questions about the knowledge base."""
+
+    # pylint: disable=missing-function-docstring
+
+    @patch("src.rag_assistant.initialize_llm")
+    @patch("src.rag_assistant.VectorDB")
+    @patch("src.rag_assistant.MemoryManager")
+    @patch("src.rag_assistant.ReasoningStrategyLoader")
+    def test_meta_question_what_topics(self, mock_memory, mock_vectordb, mock_llm):
+        """Test that 'what topics' meta-question is handled without strict similarity threshold."""
+        mock_llm.return_value.model_name = "test-model"
+        mock_vectordb_instance = MagicMock()
+        mock_vectordb.return_value = mock_vectordb_instance
+        # Return results with low similarity (distance > 0.35)
+        mock_vectordb_instance.search.return_value = {
+            "documents": [["Topic 1", "Topic 2"]],
+            "metadatas": [[{"title": "T1"}, {"title": "T2"}]],
+            "distances": [[0.4, 0.45]],
+            "ids": [["id1", "id2"]],
+        }
+        mock_memory.return_value.memory = MagicMock()
+
+        assistant = RAGAssistant()
+        assistant.chain = MagicMock()
+        assistant.chain.invoke.return_value = (
+            "I know about these topics: Topic 1, Topic 2"
+        )
+
+        # Meta-questions should proceed even with low similarity
+        response = assistant.invoke("What topics do you know about?")
+
+        # Should get a valid response, not the "couldn't find" message
+        assert "couldn't find" not in response.lower()
+        assert response == "I know about these topics: Topic 1, Topic 2"
+
+    @patch("src.rag_assistant.initialize_llm")
+    @patch("src.rag_assistant.VectorDB")
+    @patch("src.rag_assistant.MemoryManager")
+    @patch("src.rag_assistant.ReasoningStrategyLoader")
+    def test_meta_question_what_can_you(self, mock_memory, mock_vectordb, mock_llm):
+        """Test that 'what can you' meta-question bypasses similarity threshold."""
+        mock_llm.return_value.model_name = "test-model"
+        mock_vectordb_instance = MagicMock()
+        mock_vectordb.return_value = mock_vectordb_instance
+        # Return low similarity results
+        mock_vectordb_instance.search.return_value = {
+            "documents": [["Information about capabilities"]],
+            "metadatas": [[{"title": "Capabilities"}]],
+            "distances": [[0.5]],
+            "ids": [["id1"]],
+        }
+        mock_memory.return_value.memory = MagicMock()
+
+        assistant = RAGAssistant()
+        assistant.chain = MagicMock()
+        assistant.chain.invoke.return_value = "I can help you with various tasks."
+
+        response = assistant.invoke("What can you do?")
+
+        # Should proceed despite low similarity
+        assert "couldn't find" not in response.lower()
+        assert assistant.chain.invoke.called
+
+    @patch("src.rag_assistant.initialize_llm")
+    @patch("src.rag_assistant.VectorDB")
+    @patch("src.rag_assistant.MemoryManager")
+    @patch("src.rag_assistant.ReasoningStrategyLoader")
+    def test_regular_question_high_similarity_required(
+        self, mock_memory, mock_vectordb, mock_llm
+    ):
+        """Test that regular questions require high similarity threshold."""
+        mock_llm.return_value.model_name = "test-model"
+        mock_vectordb_instance = MagicMock()
+        mock_vectordb.return_value = mock_vectordb_instance
+        # Return low similarity results
+        mock_vectordb_instance.search.return_value = {
+            "documents": [[]],
+            "metadatas": [[]],
+            "distances": [[]],
+            "ids": [[]],
+        }
+        mock_memory.return_value.memory = MagicMock()
+
+        assistant = RAGAssistant()
+
+        response = assistant.invoke("What is quantum computing?")
+
+        # Should get the "couldn't find" message for regular questions with low similarity
+        assert "couldn't find" in response.lower()
+        assert "rephras" in response.lower()
+
+    @patch("src.rag_assistant.initialize_llm")
+    @patch("src.rag_assistant.VectorDB")
+    @patch("src.rag_assistant.MemoryManager")
+    @patch("src.rag_assistant.ReasoningStrategyLoader")
+    def test_regular_question_high_similarity_succeeds(
+        self, mock_memory, mock_vectordb, mock_llm
+    ):
+        """Test that regular questions succeed with high similarity results."""
+        mock_llm.return_value.model_name = "test-model"
+        mock_vectordb_instance = MagicMock()
+        mock_vectordb.return_value = mock_vectordb_instance
+        # Return high similarity results (distance < 0.35)
+        mock_vectordb_instance.search.return_value = {
+            "documents": [["Quantum computing is..."]],
+            "metadatas": [[{"title": "Quantum Computing"}]],
+            "distances": [[0.2]],
+            "ids": [["id1"]],
+        }
+        mock_memory.return_value.memory = MagicMock()
+
+        assistant = RAGAssistant()
+        assistant.chain = MagicMock()
+        assistant.chain.invoke.return_value = (
+            "Quantum computing is a field of computation..."
+        )
+
+        response = assistant.invoke("What is quantum computing?")
+
+        # Should proceed with high similarity results
+        assert "couldn't find" not in response.lower()
+        assert assistant.chain.invoke.called
+
+    @patch("src.rag_assistant.initialize_llm")
+    @patch("src.rag_assistant.VectorDB")
+    @patch("src.rag_assistant.MemoryManager")
+    @patch("src.rag_assistant.ReasoningStrategyLoader")
+    def test_meta_question_no_documents_found(
+        self, mock_memory, mock_vectordb, mock_llm
+    ):
+        """Test meta-question handling when no documents are found."""
+        mock_llm.return_value.model_name = "test-model"
+        mock_vectordb_instance = MagicMock()
+        mock_vectordb.return_value = mock_vectordb_instance
+        # Return empty results
+        mock_vectordb_instance.search.return_value = {
+            "documents": [[]],
+            "metadatas": [[]],
+            "distances": [[]],
+            "ids": [[]],
+        }
+        mock_memory.return_value.memory = MagicMock()
+
+        assistant = RAGAssistant()
+        assistant.chain = MagicMock()
+        assistant.chain.invoke.return_value = "I don't have information about that."
+
+        assistant.invoke("What topics are available?")
+
+        # Should still process meta-questions even with empty results
+        assert assistant.chain.invoke.called
+
+    @patch("src.rag_assistant.initialize_llm")
+    @patch("src.rag_assistant.VectorDB")
+    @patch("src.rag_assistant.MemoryManager")
+    @patch("src.rag_assistant.ReasoningStrategyLoader")
+    def test_meta_question_with_all_keywords(
+        self, mock_memory, mock_vectordb, mock_llm
+    ):
+        """Test various meta-question keywords are recognized."""
+        mock_llm.return_value.model_name = "test-model"
+        mock_vectordb_instance = MagicMock()
+        mock_vectordb.return_value = mock_vectordb_instance
+        mock_vectordb_instance.search.return_value = {
+            "documents": [["Content"]],
+            "metadatas": [[{"title": "Title"}]],
+            "distances": [[0.5]],
+            "ids": [["id1"]],
+        }
+        mock_memory.return_value.memory = MagicMock()
+
+        assistant = RAGAssistant()
+        assistant.chain = MagicMock()
+        assistant.chain.invoke.return_value = "Response"
+
+        # Test various meta-question keywords
+        meta_questions = [
+            "What topics do you know about?",
+            "What do you know?",
+            "What can you help with?",
+            "What documents do you have?",
+            "What information is available?",
+            "What subjects can you discuss?",
+            "Tell me your capabilities",
+        ]
+
+        for question in meta_questions:
+            response = assistant.invoke(question)
+            # All should proceed despite low similarity
+            assert "couldn't find" not in response.lower(), f"Failed for: {question}"
+
+    @patch("src.rag_assistant.initialize_llm")
+    @patch("src.rag_assistant.VectorDB")
+    @patch("src.rag_assistant.MemoryManager")
+    @patch("src.rag_assistant.ReasoningStrategyLoader")
+    def test_non_meta_question_not_triggered_by_partial_keyword(
+        self, mock_memory, mock_vectordb, mock_llm
+    ):
+        """Test that questions without meta-keywords are treated as regular questions."""
+        mock_llm.return_value.model_name = "test-model"
+        mock_vectordb_instance = MagicMock()
+        mock_vectordb.return_value = mock_vectordb_instance
+        # Return low similarity results
+        mock_vectordb_instance.search.return_value = {
+            "documents": [[]],
+            "metadatas": [[]],
+            "distances": [[]],
+            "ids": [[]],
+        }
+        mock_memory.return_value.memory = MagicMock()
+
+        assistant = RAGAssistant()
+
+        # Question without meta-keywords should fail with low similarity
+        response = assistant.invoke("Tell me about machine learning")
+
+        # Should get the "couldn't find" message
+        assert "couldn't find" in response.lower()
+
+    @patch("src.rag_assistant.initialize_llm")
+    @patch("src.rag_assistant.VectorDB")
+    @patch("src.rag_assistant.MemoryManager")
+    @patch("src.rag_assistant.ReasoningStrategyLoader")
+    def test_meta_question_memory_saved(self, mock_memory, mock_vectordb, mock_llm):
+        """Test that meta-question responses are saved to memory."""
+        mock_llm.return_value.model_name = "test-model"
+        mock_vectordb_instance = MagicMock()
+        mock_vectordb.return_value = mock_vectordb_instance
+        mock_vectordb_instance.search.return_value = {
+            "documents": [["Topic list"]],
+            "metadatas": [[{"title": "Topics"}]],
+            "distances": [[0.4]],
+            "ids": [["id1"]],
+        }
+        mock_memory_instance = MagicMock()
+        mock_memory.return_value = mock_memory_instance
+        mock_memory_instance.memory = MagicMock()
+
+        assistant = RAGAssistant()
+        assistant.chain = MagicMock()
+        assistant.chain.invoke.return_value = "Here are the topics..."
+
+        assistant.invoke("What topics do you know about?")
+
+        # Verify memory was updated
+        mock_memory_instance.add_message.assert_called_once()
+        call_args = mock_memory_instance.add_message.call_args
+        assert "what topics" in call_args[1]["input_text"].lower()
+        assert "Here are the topics" in call_args[1]["output_text"]

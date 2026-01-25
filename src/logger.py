@@ -18,9 +18,11 @@ except ImportError:  # pragma: no cover - optional dependency
 try:
     from dotenv import load_dotenv  # type: ignore
 except ImportError:  # pragma: no cover - optional dependency
+
     def load_dotenv(*_args, **_kwargs):  # pylint: disable=missing-function-docstring
         """Stub for load_dotenv when python-dotenv is not installed."""
         return False
+
 
 # Load .env file to ensure LOG_LEVEL is set before logger initialization
 env_file = Path(__file__).parent.parent / ".env"
@@ -34,9 +36,7 @@ LOG_FILE = os.path.join(LOG_DIR, "rag_assistant.log")
 DEBUG_FILE = os.path.join(LOG_DIR, "debug.log")
 
 # Get log level from environment variable (default: INFO)
-LOG_LEVEL = (
-    os.getenv("LOG_LEVEL") or os.environ.get("LOG_LEVEL") or "INFO"
-).upper()
+LOG_LEVEL = (os.getenv("LOG_LEVEL") or os.environ.get("LOG_LEVEL") or "INFO").upper()
 
 # Validate log level
 valid_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
@@ -64,8 +64,10 @@ if LOGURU_LOGGER is not None:
         enqueue=False,
     )
 
-    FILE_FORMAT = ("{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | "
-                   "{name}:{function}:{line} - {message}")
+    FILE_FORMAT = (
+        "{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | "
+        "{name}:{function}:{line} - {message}"
+    )
 
     logger.add(
         LOG_FILE,
@@ -126,8 +128,8 @@ else:
 
 # Log initialization info
 try:
-    logger.debug("Logger initialized with LOG_LEVEL: %s", LOG_LEVEL)
-    logger.debug("Log files location: %s", LOG_DIR)
+    logger.debug(f"Logger initialized with LOG_LEVEL: {LOG_LEVEL}")
+    logger.debug(f"Log files location: {LOG_DIR}")
 except (AttributeError, TypeError):  # pylint: disable=broad-exception-caught
     # If the logger implementation doesn't support the same API, ignore
     pass

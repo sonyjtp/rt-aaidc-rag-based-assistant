@@ -3,8 +3,6 @@ Embeddings initialization utilities for HuggingFace models.
 Handles device detection and embedding model setup.
 """
 
-import os
-
 import torch
 from langchain_huggingface import HuggingFaceEmbeddings
 
@@ -18,6 +16,7 @@ def initialize_embedding_model() -> HuggingFaceEmbeddings:
 
     Uses cuda if available, falls back to mps (Apple Silicon) or cpu.
     Model name can be configured via EMBEDDING_MODEL environment variable.
+    Defaults to sentence-transformers/all-mpnet-base-v2 if not configured.
 
     Returns:
         HuggingFaceEmbeddings instance configured for the detected device
@@ -29,13 +28,10 @@ def initialize_embedding_model() -> HuggingFaceEmbeddings:
         if torch.backends.mps.is_available()
         else "cpu"
     )
-    logger.info("Embedding model device: %s", device)
-
-    model_name = os.getenv(
-        VECTOR_DB_EMBEDDING_MODEL, "sentence-transformers/all-mpnet-base-v2"
-    )
+    logger.info(f"Embedding model device: {device}")
 
     return HuggingFaceEmbeddings(
-        model_name=model_name,
+        model_name=VECTOR_DB_EMBEDDING_MODEL
+        or "sentence-transformers/all-mpnet-base-v2",
         model_kwargs={"device": device},
     )

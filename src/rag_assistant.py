@@ -2,7 +2,11 @@
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 
-from config import RETRIEVAL_K_DEFAULT
+from config import (
+    DISTANCE_THRESHOLD_DEFAULT,
+    META_QUESTION_KEYWORDS,
+    RETRIEVAL_K_DEFAULT,
+)
 from llm_utils import initialize_llm
 from logger import logger
 from memory_manager import MemoryManager
@@ -20,7 +24,7 @@ class RAGAssistant:
     def __init__(self):
         """Initialize the RAG assistant."""
         self.llm = initialize_llm()
-        logger.info("LLM: %s", self.llm.model_name)
+        logger.info(f"LLM: {self.llm.model_name}")
 
         # Initialize vector database
         self.vector_db = VectorDB()
@@ -29,22 +33,20 @@ class RAGAssistant:
         self.memory_manager = MemoryManager(llm=self.llm)
         if self.memory_manager.memory:
             logger.info(
-                "Memory manager initialized with strategy: %s",
-                self.memory_manager.strategy,
+                f"Memory manager initialized with strategy: {self.memory_manager.strategy}"
             )
 
         # Initialize reasoning strategy
         try:
             self.reasoning_strategy = ReasoningStrategyLoader()
             logger.info(
-                "Reasoning strategy loaded: %s",
-                self.reasoning_strategy.get_strategy_name(),
+                f"Reasoning strategy loaded: {self.reasoning_strategy.get_strategy_name()}"
             )
         except (
             AttributeError,
             ValueError,
         ) as e:  # pylint: disable=broad-exception-caught
-            logger.error("Error loading reasoning strategy: %s", e)
+            logger.error(f"Error loading reasoning strategy: {e}")
             self.reasoning_strategy = None
 
         self._build_chain()
@@ -82,20 +84,52 @@ class RAGAssistant:
         Returns:
             String answer from the LLM based on retrieved context
         """
-        search_results = self.vector_db.search(query=query, n_results=n_results)
+        is_meta_question = any(
+            keyword.lower() in query.lower() for keyword in META_QUESTION_KEYWORDS
+        )
+
+        try:
+            search_results = self.vector_db.search(query=query, n_results=n_results)
+        except ValueError as e:
+            # Handle configuration errors (e.g., embedding dimension mismatch)
+            # without exposing technical details to the user
+            logger.error(f"Configuration error during search: {e}")
+            return (
+                "I'm unable to search the documents at the moment due to a system "
+                "configuration issue. Please try again later or contact support."
+            )
 
         # Extract documents from search results
         # Documents are returned as nested lists, so flatten them
         documents = search_results.get("documents", [])
+        distances = search_results.get("distances", [])
         if documents and isinstance(documents[0], list):
             # Flatten nested list of documents
             flat_docs = [doc for doc_list in documents for doc in doc_list]
         else:
             flat_docs = documents
 
+        # For meta-questions, use results even with lower similarity
+        # For regular questions, require higher similarity (distance <= threshold)
+        if not is_meta_question and (
+            not flat_docs or (distances and distances[0] > DISTANCE_THRESHOLD_DEFAULT)
+        ):
+            return (
+                "I couldn't find information in my knowledge base that closely matches your question. "
+                "Could you try rephrasing it or asking about a different topic? "
+                "This helps me provide more accurate answers based on the documents I have access to."
+            )
+
         context = "\n".join(flat_docs) if flat_docs else ""
 
-        response = self.chain.invoke({"context": context, "question": query})
+        try:
+            response = self.chain.invoke({"context": context, "question": query})
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logger.error(f"Error invoking chain: {e}")
+            return (
+                "I encountered an error while processing your question. "
+                "Please try again."
+            )
 
         # Save conversation to memory manager
         self.memory_manager.add_message(input_text=query, output_text=response)

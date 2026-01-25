@@ -9,11 +9,12 @@ from unittest.mock import MagicMock
 from src.sliding_window_memory import SlidingWindowMemory
 
 
-# pylint: disable=protected-access
+# pylint: disable=protected-access, attribute-defined-outside-init
 class TestSlidingWindowMemoryInitialization:
     """Test SlidingWindowMemory initialization."""
 
-    def setup(self):
+    def setup_method(self):
+        """Set up test fixtures before each test."""
         self.mock_llm = MagicMock()
 
     def test_init_with_defaults(self):
@@ -62,7 +63,8 @@ class TestSlidingWindowMemoryInitialization:
 class TestSlidingWindowMemorySaveContext:
     """Test message saving and window management."""
 
-    def setup(self):
+    def setup_method(self):
+        """Set up test fixtures before each test."""
         self.mock_llm = MagicMock()
 
     def test_save_single_message(self):
@@ -151,7 +153,8 @@ class TestSlidingWindowMemorySaveContext:
 class TestSlidingWindowMemorySummarization:
     """Test summarization logic."""
 
-    def setUp(self):
+    def setup_method(self):
+        """Set up test fixtures before each test."""
         self.mock_llm = MagicMock()
 
     def test_summarize_window_calls_llm(self):
@@ -247,14 +250,15 @@ class TestSlidingWindowMemorySummarization:
 class TestSlidingWindowMemoryLoadMemoryVariables:
     """Test memory variables retrieval."""
 
-    def setup(self):
+    def setup_method(self):
+        """Set up test fixtures before each test."""
         self.mock_llm = MagicMock()
 
     def test_load_memory_variables_empty(self):
         """Test loading memory when everything is empty."""
         memory = SlidingWindowMemory(llm=self.mock_llm, memory_key="chat_history")
 
-        variables = memory.load_memory_variables({})
+        variables = memory.load_memory_variables()
 
         assert "chat_history" in variables
         assert variables["chat_history"] == ""
@@ -264,7 +268,7 @@ class TestSlidingWindowMemoryLoadMemoryVariables:
         memory = SlidingWindowMemory(llm=self.mock_llm, memory_key="chat_history")
         memory.summary = "Previous conversation summary"
 
-        variables = memory.load_memory_variables({})
+        variables = memory.load_memory_variables()
 
         assert "Summary of previous conversation:" in variables["chat_history"]
         assert "Previous conversation summary" in variables["chat_history"]
@@ -275,7 +279,7 @@ class TestSlidingWindowMemoryLoadMemoryVariables:
 
         memory.save_context(inputs={"input": "Hello"}, outputs={"output": "Hi"})
 
-        variables = memory.load_memory_variables({})
+        variables = memory.load_memory_variables()
 
         assert "Recent messages:" in variables["chat_history"]
         assert "User: Hello" in variables["chat_history"]
@@ -288,7 +292,7 @@ class TestSlidingWindowMemoryLoadMemoryVariables:
 
         memory.save_context(inputs={"input": "Q"}, outputs={"output": "A"})
 
-        variables = memory.load_memory_variables({})
+        variables = memory.load_memory_variables()
         content = variables["chat_history"]
 
         assert "Summary of previous conversation:" in content
@@ -300,7 +304,7 @@ class TestSlidingWindowMemoryLoadMemoryVariables:
         """Test loading memory with custom key."""
         memory = SlidingWindowMemory(llm=self.mock_llm, memory_key="conversation")
 
-        variables = memory.load_memory_variables({})
+        variables = memory.load_memory_variables()
 
         assert "conversation" in variables
         assert "chat_history" not in variables
@@ -312,7 +316,7 @@ class TestSlidingWindowMemoryLoadMemoryVariables:
         for i in range(3):
             memory.save_context(inputs={"input": f"Q{i}"}, outputs={"output": f"A{i}"})
 
-        variables = memory.load_memory_variables({})
+        variables = memory.load_memory_variables()
         content = variables["chat_history"]
 
         for i in range(3):
@@ -325,7 +329,7 @@ class TestSlidingWindowMemoryLoadMemoryVariables:
 
         memory.save_context(inputs={"input": "Question"}, outputs={"output": "Answer"})
 
-        variables = memory.load_memory_variables({})
+        variables = memory.load_memory_variables()
         content = variables["chat_history"]
 
         # Check proper formatting
@@ -336,7 +340,8 @@ class TestSlidingWindowMemoryLoadMemoryVariables:
 class TestSlidingWindowMemoryEdgeCases:
     """Test edge cases and special scenarios."""
 
-    def setup(self):
+    def setup_method(self):
+        """Set up test fixtures before each test."""
         self.mock_llm = MagicMock()
 
     def test_very_long_message(self):

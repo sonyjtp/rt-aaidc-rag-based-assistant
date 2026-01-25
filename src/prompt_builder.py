@@ -21,27 +21,19 @@ def build_system_prompts() -> list[str]:
     logger.info("Building system prompts...")
 
     if role := system_prompt_config.get("role", "helpful AI assistant."):
-        system_prompts.append(
-            f"You are {role.strip().lower()}.\n"
-        )
+        system_prompts.append(f"You are {role.strip().lower()}.\n")
         logger.debug("Added role to system prompts.")
 
     if tone := system_prompt_config.get("style_or_tone"):
-        system_prompts.append(
-            f"Adopt the following style or tone:\n{tone}"
-        )
+        system_prompts.append(f"Adopt the following style or tone:\n{tone}")
         logger.debug("Added style/tone to system prompts.")
 
     if constraints := system_prompt_config.get("output_constraints"):
-        system_prompts.append(
-            f"Follow these output constraints:\n{constraints}"
-        )
+        system_prompts.append(f"Follow these output constraints:\n{constraints}")
         logger.debug("Added output constraints to system prompts.")
 
     if output_format := system_prompt_config.get("output_format"):
-        system_prompts.append(
-            f"Use the following output format:\n{output_format}"
-        )
+        system_prompts.append(f"Use the following output format:\n{output_format}")
         logger.debug("Added output format to system prompts.")
 
     # Add reasoning strategy instructions
@@ -51,19 +43,22 @@ def build_system_prompts() -> list[str]:
             strategy_instructions = strategy_loader.get_strategy_instructions()
             if strategy_instructions:
                 reasoning_prompt = (
-                    "Apply the following reasoning approach:\n" + "\n".join(
+                    "Apply the following reasoning approach:\n"
+                    + "\n".join(
                         f"- {instruction}" for instruction in strategy_instructions
                     )
                 )
                 system_prompts.append(reasoning_prompt)
                 strategy_name = strategy_loader.get_strategy_name()
-                logger.debug("Added reasoning strategy '%s' to system prompts.",
-                             strategy_name)
+                logger.debug(
+                    f"Added reasoning strategy {strategy_name} to system prompts."
+                )
         else:
-            logger.warning("Reasoning strategy '%s' is disabled.",
-                           config.REASONING_STRATEGY)
+            logger.warning(
+                f"Reasoning strategy {config.REASONING_STRATEGY} is disabled."
+            )
     except (AttributeError, ValueError) as e:  # pylint: disable=broad-exception-caught
-        logger.warning("Could not load reasoning strategy: %s", e)
+        logger.warning(f"Could not load reasoning strategy: {e}")
 
     logger.info("System prompts built successfully")
     return system_prompts

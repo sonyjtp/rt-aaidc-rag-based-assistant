@@ -24,8 +24,7 @@ class ReasoningStrategyLoader:
         self.strategies = load_yaml(config_path).get("reasoning_strategies", {})
         self.active_strategy = config.REASONING_STRATEGY
         logger.info(
-            "Reasoning strategy loader initialized with strategy: %s",
-            self.active_strategy,
+            f"Reasoning strategy loader initialized with strategy: {self.active_strategy}"
         )
 
     def get_active_strategy(self) -> dict:

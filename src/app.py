@@ -20,8 +20,8 @@ def main():
     """Main function to demonstrate the RAG assistant."""
     try:
         # Load documents
-        documents = load_documents(folder=DATA_DIR, file_extns=".txt")
-        logger.info("Loaded %d documents", len(documents))
+        documents = load_documents(folder=DATA_DIR, file_extensions=".txt")
+        logger.info(f"Loaded {len(documents)} documents")
 
         # Initialize the RAG assistant
         assistant = RAGAssistant()
@@ -34,10 +34,10 @@ def main():
                 done = True
             else:
                 result = assistant.invoke(question)
-                logger.info("%s", result)
+                logger.info(result)
 
     except (FileNotFoundError, ValueError, RuntimeError) as e:
-        logger.error("Error running RAG assistant: %s", e)
+        logger.error(f"Error running RAG assistant: {e}")
         logger.error("An error occurred while running the assistant. Please try again.")
 
 

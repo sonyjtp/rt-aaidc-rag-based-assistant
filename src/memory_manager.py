@@ -55,7 +55,7 @@ class MemoryManager:
             return strategies.get(self.strategy, {})
         except FileNotFoundError:
             logger.warning(
-                "Memory strategies config not found at %s", MEMORY_STRATEGIES_FPATH
+                f"Memory strategies config not found at {MEMORY_STRATEGIES_FPATH}"
             )
             return {}
 
@@ -121,15 +121,21 @@ class MemoryManager:
         if self.memory:
             try:
                 self.memory.save_context({"input": input_text}, {"output": output_text})
-            except Exception as e:  # pylint: disable=broad-exception-caught
-                logger.error("Error saving to memory: %s", e)
+            except (
+                ValueError,
+                AttributeError,
+            ) as e:  # pylint: disable=broad-exception-caught
+                logger.error(f"Error saving to memory: {e}")
 
     def get_memory_variables(self) -> dict:
         """Get current memory variables for the chain."""
         if self.memory:
             try:
                 return self.memory.load_memory_variables({})
-            except Exception as e:  # pylint: disable=broad-exception-caught
-                logger.error("Error loading memory variables: %s", e)
+            except (
+                ValueError,
+                AttributeError,
+            ) as e:  # pylint: disable=broad-exception-caught
+                logger.error(f"Error loading memory variables: {e}")
                 return {}
         return {}

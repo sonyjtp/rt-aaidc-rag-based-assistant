@@ -1,10 +1,16 @@
 """Vector database wrapper using ChromaDB with HuggingFace embeddings."""
 from typing import Any, Dict
 
+from chromadb.errors import InvalidArgumentError
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from chroma_client import ChromaDBClient
-from config import CHUNK_OVERLAP_DEFAULT, CHUNK_SIZE_DEFAULT, COLLECTION_NAME_DEFAULT
+from config import (
+    CHUNK_OVERLAP_DEFAULT,
+    CHUNK_SIZE_DEFAULT,
+    COLLECTION_NAME_DEFAULT,
+    TEXT_SPLITTER_SEPARATORS,
+)
 from embeddings import initialize_embedding_model
 from logger import logger
 
@@ -14,31 +20,21 @@ class VectorDB:
     A simple vector database wrapper using ChromaDB with HuggingFace embeddings.
     """
 
-    def __init__(
-        self,
-        collection_name: str = COLLECTION_NAME_DEFAULT,
-        chunk_size: int = CHUNK_SIZE_DEFAULT,
-        chunk_overlap: int = CHUNK_OVERLAP_DEFAULT,
-    ):
-        """
-        Initialize the vector database.
-
-        Args:
-            collection_name: Name of the ChromaDB collection
-            chunk_size: Approximate number of characters per chunk for text splitting
-            chunk_overlap: Number of characters to overlap between chunks
-        """
+    def __init__(self):
+        """Initialize the vector database using configuration from config.py."""
 
         # Initialize ChromaDB client and get or create collection
-        self.collection = ChromaDBClient().get_or_create_collection(collection_name)
-        logger.info("Vector database collection %s ready for use", self.collection.name)
+        self.collection = ChromaDBClient().get_or_create_collection(
+            COLLECTION_NAME_DEFAULT
+        )
+        logger.info(f"Vector database collection {self.collection.name} ready for use")
 
         self.embedding_model = initialize_embedding_model()
-        logger.info("Embedding model: %s", self.embedding_model.model_name)
+        logger.info(f"Embedding model: {self.embedding_model.model_name}")
         self.text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=chunk_size,
-            chunk_overlap=chunk_overlap,
-            separators=["\n\n", "\n", ". ", " ", ""],
+            chunk_size=CHUNK_SIZE_DEFAULT,
+            chunk_overlap=CHUNK_OVERLAP_DEFAULT,
+            separators=TEXT_SPLITTER_SEPARATORS,
         )
 
     def _chunk_documents(
@@ -85,9 +81,7 @@ class VectorDB:
         """
         chunks_with_metadata = self._chunk_documents(documents=documents)
         logger.info(
-            "Created %d chunks from %d documents",
-            len(chunks_with_metadata),
-            len(documents),
+            f"Created {len(chunks_with_metadata)} chunks from {len(documents)} documents"
         )
         self._insert_chunks_into_db(chunks_with_metadata)
 
@@ -97,7 +91,7 @@ class VectorDB:
 
         if deduplicated_chunks:
             if len(deduplicated_chunks) < len(chunks):
-                logger.info("Deduplicated to %d chunks", len(deduplicated_chunks))
+                logger.info(f"Deduplicated to {len(deduplicated_chunks)} chunks")
             next_id = self.collection.count()
             keys = [
                 f"document_{idx}"
@@ -115,7 +109,7 @@ class VectorDB:
                 metadatas=metadata,
             )
             logger.info(
-                "Added %d chunks to the vector database.", len(deduplicated_chunks)
+                f"Added {len(deduplicated_chunks)} chunks to the vector database."
             )
         else:
             logger.warning("No new chunks to add (all are duplicates)")
@@ -158,57 +152,96 @@ class VectorDB:
 
         return final_chunks
 
-    def _extract_search_results(self, results: dict) -> tuple:
+    @staticmethod
+    def _extract_search_results(results: dict) -> tuple:
         """Extract search result components from ChromaDB response."""
-
-        def safe_get(key: str):
-            """Safely extract nested list from results."""
-            return results.get(key, [[]])[0] if results.get(key) else []
-
         return (
-            safe_get("documents"),
-            safe_get("metadatas"),
-            safe_get("distances"),
-            safe_get("ids"),
+            results.get("documents", [[]])[0] if results.get("documents") else [],
+            results.get("metadatas", [[]])[0] if results.get("metadatas") else [],
+            results.get("distances", [[]])[0] if results.get("distances") else [],
+            results.get("ids", [[]])[0] if results.get("ids") else [],
         )
 
+    @staticmethod
+    def _filter_search_results(
+        documents: list,
+        metadatas: list,
+        distances: list,
+        ids: list,
+        maximum_distance: float,
+    ) -> tuple:
+        """
+        Filter search results based on distance threshold.
+
+        Args:
+            documents: List of retrieved documents
+            metadatas: List of metadata for documents
+            distances: List of distance scores
+            ids: List of document IDs
+            maximum_distance: Maximum distance threshold
+
+        Returns:
+            Tuple of (documents, metadatas, distances, ids) filtered by threshold
+        """
+        filtered_results = [
+            (doc, meta, dist, doc_id)
+            for doc, meta, dist, doc_id in zip(documents, metadatas, distances, ids)
+            if dist <= maximum_distance
+        ]
+
+        if filtered_results:
+            return tuple(map(list, zip(*filtered_results)))
+        return [], [], [], []
+
     def search(
-        self, query: str, n_results: int = 5
-    ) -> Dict[str, Any]:  # pylint: disable=too-many-locals
+        self, query: str, n_results: int = 5, maximum_distance: float = 0.35
+    ) -> Dict[str, Any]:
         """
         Search for similar documents in the vector database.
 
         Args:
             query: Search query
             n_results: Number of results to return
+            maximum_distance: Maximum distance threshold for filtering results
 
         Returns:
             Dictionary containing search results with keys: 'documents',
             'metadatas', 'distances', 'ids'
         """
         query_embedding = self.embedding_model.embed_query(query)
-        results = self.collection.query(
-            query_embeddings=[query_embedding], n_results=n_results
-        )
+        try:
+            results = self.collection.query(
+                query_embeddings=[query_embedding], n_results=n_results
+            )
+        except InvalidArgumentError as e:
+            error_msg = str(e)
+            if "expecting embedding with dimension" in error_msg:
+                logger.error(
+                    f"Embedding dimension mismatch: {error_msg}. "
+                    "Please update VECTOR_DB_EMBEDDING_MODEL in config.py "
+                    "to match your collection's embedding model."
+                )
+                return {
+                    "documents": [],
+                    "metadatas": [],
+                    "distances": [],
+                    "ids": [],
+                }
+            raise
 
         documents, metadatas, distances, ids = self._extract_search_results(results)
+        documents, metadatas, distances, ids = self._filter_search_results(
+            documents, metadatas, distances, ids, maximum_distance
+        )
 
-        logger.debug("Search query: %s", query)
-        logger.debug("Retrieved %d results", len(documents))
+        logger.debug(f"Search query: {query}")
+        logger.debug(f"Retrieved {len(documents)} results")
 
-        for i, (doc_id, distance, metadata) in enumerate(
-            zip(ids, distances, metadatas), 1
-        ):
-            cosine_similarity = 1 - distance
-            title = metadata.get("title", "N/A")
-            filename = metadata.get("filename", "N/A")
+        for doc_id, distance, metadata in zip(ids, distances, metadatas):
             logger.debug(
-                "  Result %d: %s | Similarity: %.4f | Title: %s | File: %s",
-                i,
-                doc_id,
-                cosine_similarity,
-                title,
-                filename,
+                f"  {doc_id} | Similarity: {1 - distance:.4f} | "
+                f"Title: {metadata.get('title', 'N/A')} | "
+                f"File: {metadata.get('filename', 'N/A')}"
             )
 
         return {

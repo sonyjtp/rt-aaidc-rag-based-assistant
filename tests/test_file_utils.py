@@ -72,7 +72,7 @@ class TestLoadDocuments:
                 f.write("Markdown File\nContent")
 
             # Load only markdown files
-            docs = load_documents(temp_dir, file_extns=".md")
+            docs = load_documents(temp_dir, file_extensions=".md")
 
             # Verify
             assert len(docs) == 1
@@ -151,7 +151,7 @@ class TestLoadDocuments:
             with open(json_file, "w", encoding="utf-8") as f:
                 f.write('{"key": "value"}')
 
-            docs = load_documents(temp_dir, file_extns=".txt")
+            docs = load_documents(temp_dir, file_extensions=".txt")
 
             # Only .txt file should be loaded
             assert len(docs) == 1
@@ -198,7 +198,7 @@ class TestLoadDocuments:
                     f.write("Title\nContent")
 
             # Load .txt and .md files
-            docs = load_documents(temp_dir, file_extns=(".txt", ".md"))
+            docs = load_documents(temp_dir, file_extensions=(".txt", ".md"))
 
             # Should load 2 files
             assert len(docs) == 2
