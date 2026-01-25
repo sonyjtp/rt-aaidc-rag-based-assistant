@@ -2,6 +2,8 @@ Semiotics: The Study of Signs and Meaning
 
 Tags: semiotics,signs,meaning,communication,linguistics,culture,interpretation
 
+Summary: This document examines semiotics as the study of how signs, symbols, and meaning are created and interpreted across human communication, language, and cultural systems.
+
 Semiotics is the discipline that studies signs, symbols, and the processes of meaning-making and interpretation. Derived from "semeion" meaning "sign," semiotics examines how humans create meaning through signs. This interdisciplinary field bridges philosophy, linguistics, psychology, and cultural studies.
 
 The Triadic Model and Sign Components
@@ -20,7 +22,10 @@ Digital Semiotics and Emerging Sign Systems
 
 Emojis represent a contemporary example of how humans create and standardize new signs. Hashtags function as meta-signs organizing digital discourse. The constant creation of new signs in digital spaces demonstrates that meaning-making is ongoing. Future challenges include creating accessibility in digital semiotic systems and facilitating cross-cultural digital communication.
 
+Limitations
+
+This analysis focuses on semiotics as it emerged through Western linguistic and philosophical traditions, potentially overlooking non-Western approaches to signs, meaning-making, and symbolic communication systems.
+
 Future of Semiotics and Meaning-Making
 
 Semiotics is experiencing a renaissance as digital technology and global connectivity create unprecedented challenges. The field must address how AI systems learn to interpret human signs and preserve semiotic diversity. Understanding semiotics becomes essential for developing AI systems that can reliably understand human intentions and communicate effectively.
-

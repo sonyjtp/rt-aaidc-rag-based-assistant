@@ -2,6 +2,8 @@ Famous Fugitives Throughout History
 
 Tags: fugitives,crime,history,law-enforcement,justice,criminals,evasion
 
+Summary: This document profiles historically significant fugitives whose evasion from justice shaped public perception, influenced law enforcement tactics, and reveals patterns in criminal escape attempts.
+
 Fugitives—individuals who flee from justice or legal authority—represent some of history's most compelling narratives. Throughout history, certain fugitives achieved notoriety through their crimes, ability to evade capture, or the dramatic circumstances of their apprehension. Understanding fugitives provides insights into criminology and the complex relationship between individuals and state authority.
 
 D.B. Cooper: The Mysterious Skyjacker
@@ -24,3 +26,6 @@ Edward Snowden: The Whistleblower Fugitive
 
 Edward Snowden became a fugitive in 2013 after leaking classified NSA surveillance programs. Unlike traditional criminals, Snowden viewed his fugitive status as necessary to expose unlawful government programs. He fled to Russia, where he was granted temporary asylum. Snowden remains a fugitive from U.S. justice, though his revelations fundamentally altered public understanding of government surveillance.
 
+Limitations
+
+This analysis focuses on internationally known fugitives, potentially overlooking regional cases with significant local impact that lack widespread international documentation or media coverage from the time periods involved.

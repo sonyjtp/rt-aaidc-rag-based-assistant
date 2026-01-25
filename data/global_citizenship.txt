@@ -1,6 +1,8 @@
 Global Citizenship
 
-Tags: global-citizenship,social-justice,human-rights,environmental-sustainability,culture,peace,cooperation
+Tags: global-citizenship,international-relations,human-rights,social-responsibility,cultural-diversity,planetary-awareness
+
+Summary: This document examines global citizenship as a framework for understanding shared responsibility, interconnected challenges, and the need for collaborative solutions across national and cultural boundaries.
 
 Global citizenship refers to a sense of belonging to a broader community of humanity that transcends national and cultural boundaries. Individuals recognize their responsibilities to the entire planet. Global citizenship embraces principles of social justice, environmental sustainability, cultural diversity, and human rights.
 
@@ -20,3 +22,6 @@ Collective Responsibility and Peaceful Coexistence
 
 Global citizens embrace collective responsibility, recognizing that individual actions have global implications. This perspective promotes peaceful conflict resolution, diplomacy, and multilateral collaboration. International peace activists have demonstrated how principled global leadership can advance peace and human dignity. Current initiatives include peace education programs and international development partnerships.
 
+Limitations
+
+This analysis examines global citizenship primarily through international relations frameworks, potentially overlooking how local communities, indigenous knowledge systems, and marginalized populations conceptualize global responsibility and planetary citizenship.
