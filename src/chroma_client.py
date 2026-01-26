@@ -64,8 +64,7 @@ class ChromaDBClient:
             ChromaDB collection instance
         """
         return self.client.get_or_create_collection(
-            name=collection_name,
-            metadata=CHROMA_COLLECTION_METADATA,
+            name=collection_name, metadata=CHROMA_COLLECTION_METADATA
         )
 
     def delete_collection(self, collection_name: str) -> None:

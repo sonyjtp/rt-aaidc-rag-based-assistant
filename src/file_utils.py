@@ -121,5 +121,7 @@ def load_yaml(file_path: str | Path) -> dict:
             return yaml.safe_load(file)
     except yaml.YAMLError as e:
         raise yaml.YAMLError(f"Error parsing YAML file: {e}") from e
+    except FileNotFoundError as e:
+        raise FileNotFoundError(f"YAML file not found: {e}") from e
     except IOError as e:
         raise IOError(f"Error reading YAML file: {e}") from e

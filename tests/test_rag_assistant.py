@@ -195,8 +195,10 @@ class TestRAGAssistantInvoke:
         if has_documents:
             assert response == "Test response"
         else:
-            # Empty documents should trigger rejection message
-            assert "couldn't find information" in response.lower()
+            # Empty documents should trigger LLM with empty context
+            # System prompts will guide the response to "not known to me"
+            assert response == "Test response"
+            assistant.chain.invoke.assert_called_once()
 
         mock_components["vectordb_instance"].search.assert_called_once()
 
@@ -214,7 +216,7 @@ class TestRAGAssistantInvoke:
         assistant.invoke("Test query")
 
         mock_components["vectordb_instance"].search.assert_called_once_with(
-            query="Test query", n_results=3
+            query="Test query", n_results=5, maximum_distance=0.7
         )
 
     @pytest.mark.parametrize(
@@ -236,7 +238,7 @@ class TestRAGAssistantInvoke:
         assistant.invoke("What about this?", n_results=n_results)
 
         mock_components["vectordb_instance"].search.assert_called_once_with(
-            query="What about this?", n_results=n_results
+            query="What about this?", n_results=n_results, maximum_distance=0.7
         )
 
     def test_invoke_saves_to_memory(self, mock_components):
@@ -259,7 +261,7 @@ class TestRAGAssistantInvoke:
         )
 
     def test_invoke_low_similarity_rejects_answer(self, mock_components):
-        """Test invoke rejects low-similarity answers for non-meta questions."""
+        """Test invoke handles low-similarity answers by passing empty context to LLM."""
         # Simulate low similarity (distance > threshold)
         mock_components["vectordb_instance"].search.return_value = {
             "documents": [["Some content"]],
@@ -268,13 +270,16 @@ class TestRAGAssistantInvoke:
 
         assistant = RAGAssistant()
         assistant.chain = MagicMock()
+        assistant.chain.invoke.return_value = (
+            "I'm sorry, that information is not known to me."
+        )
 
         # Use query with action verb so it's a REGULAR question (not VAGUE/META)
         response = assistant.invoke("What is this?")
 
-        # Should return rejection message, not call chain
-        assert "couldn't find information" in response.lower()
-        assert not assistant.chain.invoke.called
+        # Should call chain with empty context, letting system prompts handle rejection
+        assert response == "I'm sorry, that information is not known to me."
+        assistant.chain.invoke.assert_called_once()
 
 
 # pylint: disable=redefined-outer-name

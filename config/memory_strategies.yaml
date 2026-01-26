@@ -28,5 +28,5 @@ summary:
 
 none:
   description: "Disables conversation memory entirely"
-  enabled: false
+  enabled: true
   strategy_type: "none"

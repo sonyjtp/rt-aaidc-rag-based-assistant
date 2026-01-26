@@ -4,11 +4,11 @@ import os
 import streamlit as st
 from dotenv import load_dotenv
 
-from config import DATA_DIR
+from config import DATA_DIR, DOCUMENT_TYPES
 from file_utils import load_documents
 from logger import logger
 from rag_assistant import RAGAssistant
-from ui_utils import configure_page, load_custom_styles
+from ui_utils import configure_page, load_custom_styles, validate_and_filter_topics
 
 # Set tokenizers parallelism to avoid warnings
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -33,7 +33,7 @@ if not st.session_state.initialization_attempted:
     st.session_state.initialization_attempted = True
     try:
         # Load documents silently without displaying status
-        documents = load_documents(folder=DATA_DIR, file_extensions=".txt")
+        documents = load_documents(folder=DATA_DIR, file_extensions=DOCUMENT_TYPES)
 
         # Initialize the RAG assistant
         st.session_state.assistant = RAGAssistant()
@@ -148,6 +148,10 @@ if st.session_state.initialized:
         try:
             response = st.session_state.assistant.invoke(user_input)
             logger.debug(f"Agent response received: {response[:100]}")
+
+            # Validate and filter Related Topics - only allow topics from the knowledge base
+            response = validate_and_filter_topics(response)
+            logger.debug(f"Response after topic validation: {response[:100]}")
 
             # Clean up the response - remove markdown headers and separators
             lines = response.split("\n")

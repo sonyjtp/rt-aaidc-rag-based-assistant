@@ -27,12 +27,13 @@ class TestHallucinationPreventionConstraints:
         assert "not known to me" in prompt_text
 
     def test_system_prompts_contain_etymology_example(self):
-        """Test that system prompts explicitly mention etymology as example."""
+        """Test that system prompts explicitly mention example topics."""
         prompts = build_system_prompts()
         prompt_text = "\n".join(prompts)
 
-        assert "etymology" in prompt_text.lower()
-        assert "Pharaonic" in prompt_text
+        # Check for actual topics mentioned in the prompt config
+        assert "evolution of languages" in prompt_text.lower()
+        assert "ancient civilizations" in prompt_text.lower()
 
     def test_system_prompts_forbid_general_knowledge(self):
         """Test that system prompts explicitly forbid general knowledge usage."""

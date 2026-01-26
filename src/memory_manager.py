@@ -6,7 +6,16 @@ memory implementations and falls back gracefully when optional dependencies
 are not available.
 """
 
-from config import MEMORY_STRATEGIES_FPATH, MEMORY_STRATEGY
+from config import (
+    DEFAULT_MAX_MESSAGES,
+    DEFAULT_MEMORY_SLIDING_WINDOW_SIZE,
+    DEFAULT_SUMMARY_PROMPT,
+    MEMORY_KEY_PARAM,
+    MEMORY_PARAMETERS_KEY,
+    MEMORY_STRATEGIES_FPATH,
+    MEMORY_STRATEGY,
+)
+from file_utils import load_yaml
 from logger import logger
 from simple_buffer_memory import SimpleBufferMemory
 from sliding_window_memory import SlidingWindowMemory
@@ -20,34 +29,35 @@ except ImportError:  # pragma: no cover - optional dependency
 
 
 class MemoryManager:
+
     """Manages conversation memory based on configured strategy."""
 
     def __init__(self, llm):
-        """Initialize memory manager with the configured strategy."""
-        self.strategy = MEMORY_STRATEGY
+        """Initialize memory manager with the configured strategy.
+        Steps:
+        1. Load memory strategy configuration from YAML file
+        2. Initialize the appropriate memory strategy
+
+        Args:
+            llm: The language model instance to use for memory strategies
+                 that require it.
+
+        """
+        self.strategy = MEMORY_STRATEGY or "none"
         self.config = self._load_memory_strategy_config()
         self.llm = llm
         self.memory = None
         self._initialize_memory()
 
-    def _load_memory_strategy_config(self):
-        """Load memory strategy configuration from YAML file.
-
-        If PyYAML is not installed, return an empty configuration and log a
-        warning so the application can continue running without memory.
+    def _load_memory_strategy_config(self) -> dict:
         """
-        if yaml is None:
-            logger.warning("PyYAML not installed; memory strategies unavailable.")
-            return {}
-
+        Load memory strategy configuration from YAML file.
+        Returns an empty dict if loading fails.
+        """
         try:
-            with open(MEMORY_STRATEGIES_FPATH, "r", encoding="utf-8") as f:
-                strategies = yaml.safe_load(f) or {}
-            return strategies.get(self.strategy, {})
-        except FileNotFoundError:
-            logger.warning(
-                f"Memory strategies config not found at {MEMORY_STRATEGIES_FPATH}"
-            )
+            return load_yaml(MEMORY_STRATEGIES_FPATH).get(self.strategy, {})
+        except (yaml.YAMLError, FileNotFoundError, IOError):
+            logger.warning("Unable to initialize memory strategy.")
             return {}
 
     def _initialize_memory(self):
@@ -61,19 +71,20 @@ class MemoryManager:
 
         Falls back gracefully if initialization fails.
         """
-        if self.strategy == "summarization_sliding_window":
-            self._initialize_sliding_window_memory()
-        elif self.strategy == "simple_buffer":
-            self._initialize_simple_buffer_memory()
-        elif self.strategy == "summary":
-            self._initialize_summary_memory()
-        elif self.strategy == "none":
-            self.memory = None
-        else:
-            logger.warning(
-                f"Unknown memory strategy: {self.strategy}. No memory applied."
-            )
-            self.memory = None
+        match self.strategy:
+            case "summarization_sliding_window":
+                self._initialize_sliding_window_memory()
+            case "simple_buffer":
+                self._initialize_simple_buffer_memory()
+            case "summary":
+                self._initialize_summary_memory()
+            case "none":
+                self.memory = None
+            case _:
+                logger.warning(
+                    f"Unknown memory strategy: {self.strategy}. No memory applied."
+                )
+                self.memory = None
 
     def _initialize_sliding_window_memory(self):
         """Initialize sliding window memory strategy.
@@ -83,19 +94,18 @@ class MemoryManager:
         be available or may have compatibility issues.
         """
         try:
-            window_size = self.config.get("parameters", {}).get("window_size", 20)
-            memory_key = self.config.get("parameters", {}).get(
-                "memory_key", "chat_history"
+            parameters = self.config.get(MEMORY_PARAMETERS_KEY, {})
+            window_size = parameters.get(
+                "window_size", DEFAULT_MEMORY_SLIDING_WINDOW_SIZE
             )
+            memory_key = parameters.get("memory_key", MEMORY_KEY_PARAM)
             self.memory = SlidingWindowMemory(
-                llm=self.llm,
-                window_size=window_size,
-                memory_key=memory_key,
+                llm=self.llm, window_size=window_size, memory_key=memory_key
             )
-            logger.info(
-                f"SlidingWindowMemory initialized with strategy: {self.strategy}"
+            logger.debug(
+                f"SlidingWindowMemory initialized with window_size={window_size}"
             )
-        except Exception as e:  # pylint: disable=broad-exception-caught
+        except (ValueError, TypeError) as e:
             logger.warning(
                 f"SlidingWindowMemory initialization failed: {e}. Falling back to no memory."
             )
@@ -108,18 +118,16 @@ class MemoryManager:
         No summarization or advanced features.
         """
         try:
-            memory_key = self.config.get("parameters", {}).get(
-                "memory_key", "chat_history"
-            )
-            max_messages = self.config.get("parameters", {}).get("max_messages", 50)
+            parameters = self.config.get(MEMORY_PARAMETERS_KEY, {})
+            memory_key = parameters.get("memory_key", MEMORY_KEY_PARAM)
+            max_messages = parameters.get("max_messages", DEFAULT_MAX_MESSAGES)
             self.memory = SimpleBufferMemory(
-                memory_key=memory_key,
-                max_messages=max_messages,
+                memory_key=memory_key, max_messages=max_messages
             )
-            logger.info(
+            logger.debug(
                 f"SimpleBufferMemory initialized with max_messages={max_messages}"
             )
-        except Exception as e:  # pylint: disable=broad-exception-caught
+        except (ValueError, TypeError) as e:
             logger.warning(
                 f"SimpleBufferMemory initialization failed: {e}. Falling back to no memory."
             )
@@ -131,20 +139,14 @@ class MemoryManager:
         Maintains a running summary of the conversation using the LLM.
         """
         try:
-            memory_key = self.config.get("parameters", {}).get(
-                "memory_key", "chat_history"
-            )
-            summary_prompt = self.config.get("parameters", {}).get(
-                "summary_prompt",
-                "Summarize the conversation so far in a few sentences.",
-            )
+            parameters = self.config.get(MEMORY_PARAMETERS_KEY, {})
+            memory_key = parameters.get("memory_key", MEMORY_KEY_PARAM)
+            summary_prompt = parameters.get("summary_prompt", DEFAULT_SUMMARY_PROMPT)
             self.memory = SummaryMemory(
-                llm=self.llm,
-                memory_key=memory_key,
-                summary_prompt=summary_prompt,
+                llm=self.llm, memory_key=memory_key, summary_prompt=summary_prompt
             )
-            logger.info("SummaryMemory initialized")
-        except Exception as e:  # pylint: disable=broad-exception-caught
+            logger.debug("SummaryMemory initialized")
+        except (ValueError, TypeError) as e:
             logger.warning(
                 f"SummaryMemory initialization failed: {e}. Falling back to no memory."
             )
@@ -154,7 +156,9 @@ class MemoryManager:
         """Add a message pair to memory."""
         if self.memory:
             try:
-                self.memory.save_context({"input": input_text}, {"output": output_text})
+                self.memory.save_context(
+                    inputs={"input": input_text}, outputs={"output": output_text}
+                )
             except Exception as e:  # pylint: disable=broad-exception-caught
                 logger.error(f"Error saving to memory: {e}")
 
@@ -162,7 +166,7 @@ class MemoryManager:
         """Get current memory variables for the chain."""
         if self.memory:
             try:
-                return self.memory.load_memory_variables({})
+                return self.memory.load_memory_variables()
             except Exception as e:  # pylint: disable=broad-exception-caught
                 logger.error(f"Error loading memory variables: {e}")
                 return {}

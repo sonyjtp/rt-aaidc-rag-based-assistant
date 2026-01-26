@@ -2,11 +2,7 @@
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 
-from config import (
-    DISTANCE_THRESHOLD_DEFAULT,
-    META_QUESTION_KEYWORDS,
-    RETRIEVAL_K_DEFAULT,
-)
+from config import DISTANCE_THRESHOLD, RETRIEVAL_K
 from llm_utils import initialize_llm
 from logger import logger
 from memory_manager import MemoryManager
@@ -22,11 +18,20 @@ class RAGAssistant:
     """
 
     def __init__(self):
-        """Initialize the RAG assistant."""
+        """Initialize the RAG assistant.
+        Steps:
+        1. Initialize LLM
+        2. Initialize vector database for document retrieval
+        3. Initialize conversation memory
+        4. Initialize reasoning strategy
+        5. Build prompt template and LLM chain
+        """
+
+        # Initialize LLM
         self.llm = initialize_llm()
         logger.info(f"LLM: {self.llm.model_name}")
 
-        # Initialize vector database
+        # Initialize vector database for document retrieval, chunking, and embeddings
         self.vector_db = VectorDB()
 
         # Initialize conversation memory
@@ -66,7 +71,16 @@ class RAGAssistant:
         self.prompt_template = ChatPromptTemplate.from_messages(
             [
                 ("system", "\n".join(system_prompts)),
-                ("human", "Context from documents:\n{context}\n\nQuestion: {question}"),
+                (
+                    "human",
+                    """Previous conversation context:
+{chat_history}
+
+Context from documents:
+{context}
+
+Question: {question}""",
+                ),
             ]
         )
         logger.info("Prompt template for RAG Assistant created from system prompts.")
@@ -82,7 +96,58 @@ class RAGAssistant:
         """
         self.vector_db.add_documents(documents)
 
-    def invoke(self, query: str, n_results: int = RETRIEVAL_K_DEFAULT) -> str:
+    def _flatten_search_results(
+        self, search_results: dict
+    ) -> tuple[list[str], list[float]]:
+        """
+        Flatten nested search results into simple lists.
+
+        Args:
+            search_results: Raw search results from vector database
+
+        Returns:
+            Tuple of (flattened_documents, flattened_distances)
+        """
+        documents = search_results.get("documents", [])
+        distances = search_results.get("distances", [])
+
+        # Flatten documents if nested
+        if documents and isinstance(documents[0], list):
+            flat_docs = [doc for doc_list in documents for doc in doc_list]
+        else:
+            flat_docs = documents
+
+        # Flatten distances if nested
+        if distances and isinstance(distances[0], list):
+            flat_distances = [dist for dist_list in distances for dist in dist_list]
+        else:
+            flat_distances = distances
+
+        return flat_docs, flat_distances
+
+    def _log_search_results(
+        self, flat_docs: list[str], flat_distances: list[float]
+    ) -> None:
+        """
+        Log search results for debugging purposes.
+
+        Args:
+            flat_docs: Flattened list of documents
+            flat_distances: Flattened list of distances
+        """
+        # Truncate documents to first 50 chars for readability
+        truncated_docs = [
+            doc[:50] + "..." if isinstance(doc, str) and len(doc) > 50 else doc
+            for doc in flat_docs
+        ]
+        # Convert distances to similarity scores (1 - distance)
+        similarity_scores = [1 - dist for dist in flat_distances]
+        for i, (doc, sim_score) in enumerate(zip(truncated_docs, similarity_scores)):
+            logger.debug(
+                f"Retrieved Result {i+1}: {doc}, similarity_score: {sim_score}"
+            )
+
+    def invoke(self, query: str, n_results: int = RETRIEVAL_K) -> str:
         """
         Query the RAG assistant.
 
@@ -93,12 +158,11 @@ class RAGAssistant:
         Returns:
             String answer from the LLM based on retrieved context
         """
-        is_meta_question = any(
-            keyword.lower() in query.lower() for keyword in META_QUESTION_KEYWORDS
-        )
 
         try:
-            search_results = self.vector_db.search(query=query, n_results=n_results)
+            search_results = self.vector_db.search(
+                query=query, n_results=n_results, maximum_distance=DISTANCE_THRESHOLD
+            )
         except ValueError as e:
             # Handle configuration errors (e.g., embedding dimension mismatch)
             # without exposing technical details to the user
@@ -108,46 +172,43 @@ class RAGAssistant:
                 "configuration issue. Please try again later or contact support."
             )
 
-        # Extract documents from search results
-        # Documents are returned as nested lists, so flatten them
-        documents = search_results.get("documents", [])
-        distances = search_results.get("distances", [])
-        if documents and isinstance(documents[0], list):
-            # Flatten nested list of documents
-            flat_docs = [doc for doc_list in documents for doc in doc_list]
-        else:
-            flat_docs = documents
+        # Flatten search results using the helper method
+        flat_docs, flat_distances = self._flatten_search_results(search_results)
 
-        # Flatten distances if they are nested lists
-        flat_distances = []
-        if distances:
-            if isinstance(distances[0], list):
-                flat_distances = [dist for dist_list in distances for dist in dist_list]
-            else:
-                flat_distances = distances
+        # Log search results for debugging
+        self._log_search_results(flat_docs, flat_distances)
 
-        # For meta-questions, use results even with lower similarity
-        # For regular questions, require higher similarity (distance <= threshold)
-        if not is_meta_question and (
-            not flat_docs
-            or (flat_distances and flat_distances[0] > DISTANCE_THRESHOLD_DEFAULT)
-        ):
-            return (
-                "I couldn't find information in my knowledge base that closely matches your question. "
-                "Could you try rephrasing it or asking about a different topic? "
-                "This helps me provide more accurate answers based on the documents I have access to."
-            )
-
-        context = "\n".join(flat_docs) if flat_docs else ""
+        # Use documents only if they meet similarity threshold
+        # Otherwise pass empty context and let system prompts guide the response
+        # System prompts already handle: meta-questions, greetings, out-of-scope questions
+        context = (
+            "\n".join(flat_docs)
+            if flat_docs
+            and (not flat_distances or flat_distances[0] <= DISTANCE_THRESHOLD)
+            else ""
+        )
 
         try:
-            response = self.chain.invoke({"context": context, "question": query})
+            # Prepare chain inputs with context, question, and memory
+            memory_vars = self.memory_manager.get_memory_variables()
+            chain_inputs = {
+                "context": context,
+                "question": query,
+                "chat_history": memory_vars.get("chat_history", "")
+                or "No previous conversation context.",
+            }
+
+            response = self.chain.invoke(chain_inputs)
         except Exception as e:  # pylint: disable=broad-exception-caught
             logger.error(f"Error invoking chain: {e}")
-            return (
+            response = (
                 "I encountered an error while processing your question. "
                 "Please try again."
             )
+
+        # Debug: Log the final query result
+        logger.debug(f"Query: {query}")
+        logger.debug(f"Query Result: {response}")
 
         # Save conversation to memory manager
         self.memory_manager.add_message(input_text=query, output_text=response)

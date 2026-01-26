@@ -6,6 +6,7 @@ Tests window management, summarization, and memory operations.
 from collections import deque
 from unittest.mock import MagicMock
 
+from config import DEFAULT_MEMORY_SLIDING_WINDOW_SIZE
 from src.sliding_window_memory import SlidingWindowMemory
 
 
@@ -23,7 +24,7 @@ class TestSlidingWindowMemoryInitialization:
         memory = SlidingWindowMemory(llm=self.mock_llm)
 
         assert memory.llm == self.mock_llm
-        assert memory.window_size == 5
+        assert memory.window_size == DEFAULT_MEMORY_SLIDING_WINDOW_SIZE
         assert memory.memory_key == "chat_history"
         assert len(memory.messages) == 0
         assert memory.summary == ""

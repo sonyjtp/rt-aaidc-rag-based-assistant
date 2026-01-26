@@ -6,22 +6,29 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from chroma_client import ChromaDBClient
 from config import (
-    CHUNK_OVERLAP_DEFAULT,
-    CHUNK_SIZE_DEFAULT,
+    CHUNK_OVERLAP,
+    CHUNK_SIZE,
     COLLECTION_NAME_DEFAULT,
     TEXT_SPLITTER_SEPARATORS,
 )
 from embeddings import initialize_embedding_model
 from logger import logger
+from str_utils import format_tags
 
 
 class VectorDB:
     """
     A simple vector database wrapper using ChromaDB with HuggingFace embeddings.
+    Handles document chunking, deduplication, insertion, and similarity search.
     """
 
     def __init__(self):
-        """Initialize the vector database using configuration from config.py."""
+        """Initialize the vector database using configuration from config.py.
+        Steps:
+        1. Initialize ChromaDB client and get or create collection
+        2. Initialize embedding model for document embeddings
+        3. Initialize text splitter for chunking documents
+        """
 
         # Initialize ChromaDB client and get or create collection
         self.collection = ChromaDBClient().get_or_create_collection(
@@ -29,11 +36,14 @@ class VectorDB:
         )
         logger.info(f"Vector database collection {self.collection.name} ready for use")
 
+        # Initialize embedding model for document embeddings
         self.embedding_model = initialize_embedding_model()
         logger.info(f"Embedding model: {self.embedding_model.model_name}")
+
+        # Initialize text splitter for chunking documents
         self.text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=CHUNK_SIZE_DEFAULT,
-            chunk_overlap=CHUNK_OVERLAP_DEFAULT,
+            chunk_size=CHUNK_SIZE,
+            chunk_overlap=CHUNK_OVERLAP,
             separators=TEXT_SPLITTER_SEPARATORS,
         )
 
@@ -60,7 +70,11 @@ class VectorDB:
                     "filename": (
                         doc.get("filename", "") if isinstance(doc, dict) else ""
                     ),
-                    "tags": doc.get("tags", "") if isinstance(doc, dict) else "",
+                    "tags": (
+                        format_tags(doc.get("tags", []))
+                        if isinstance(doc, dict)
+                        else ""
+                    ),
                 },
             )
             for doc in docs
@@ -113,8 +127,6 @@ class VectorDB:
             )
         else:
             logger.warning("No new chunks to add (all are duplicates)")
-
-    # ...existing code...
 
     def _filter_duplicate_chunks(
         self, chunks: list[tuple[str, dict]]

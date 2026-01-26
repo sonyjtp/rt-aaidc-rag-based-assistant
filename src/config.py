@@ -32,7 +32,7 @@ ERROR_NO_API_KEY = (
 # ============================================================================
 
 # LLM Behavior
-LLM_TEMPERATURE = 0.0
+LLM_TEMPERATURE = 0.1  # 0.1 - 0.3 - low randomness for RAG use cases, higher values increase creativity
 
 # Model Selection (defaults can be overridden via .env)
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
@@ -70,6 +70,12 @@ LLM_PROVIDERS = [
 
 
 # ============================================================================
+# DOCUMENT TYPES
+# ============================================================================
+# Could use any, a few, or all of : (".pdf", ".docx", ".txt", ".md")
+DOCUMENT_TYPES = ".txt"
+
+# ============================================================================
 # VECTOR DATABASE & EMBEDDINGS
 # ============================================================================
 
@@ -95,28 +101,13 @@ VECTOR_DB_EMBEDDING_MODEL = "sentence-transformers/all-mpnet-base-v2"
 # ============================================================================
 
 # Text Chunking Configuration
-CHUNK_SIZE_DEFAULT = 500
-CHUNK_OVERLAP_DEFAULT = 100
+CHUNK_SIZE = 1024  # Increased from 512 to keep concepts together
+CHUNK_OVERLAP = 200  # Increased from 100 (20% overlap) for better context
 TEXT_SPLITTER_SEPARATORS = ["\n\n", "\n", ". ", " ", ""]
 
 # Retrieval Configuration
-RETRIEVAL_K_DEFAULT = 3
-DISTANCE_THRESHOLD_DEFAULT = 0.35  # Maximum distance (lower = higher similarity)
-
-# Meta-question keywords that don't require high document similarity
-META_QUESTION_KEYWORDS = [
-    "what topics",
-    "what do you know",
-    "what can you",
-    "what documents",
-    "what information",
-    "what subjects",
-    "capabilities",
-    "who are you",
-    "what are you",
-    "tell me about yourself",
-    "what is your purpose",
-]
+RETRIEVAL_K = 5  # Increased from 3 to get more candidates
+DISTANCE_THRESHOLD = 0.7
 
 
 # ============================================================================
@@ -127,6 +118,14 @@ META_QUESTION_KEYWORDS = [
 MEMORY_STRATEGIES_FPATH = os.path.join(ROOT_DIR, "config", "memory_strategies.yaml")
 # Options: summarization_sliding_window, summarization, conversation_buffer_memory, none
 MEMORY_STRATEGY = "summarization_sliding_window"
+
+# Default memory strategy parameters
+DEFAULT_MEMORY_SLIDING_WINDOW_SIZE = 20
+MEMORY_KEY_PARAM = "chat_history"
+MEMORY_PARAMETERS_KEY = "parameters"
+DEFAULT_MAX_MESSAGES = 50
+DEFAULT_SUMMARY_PROMPT = "Summarize the conversation so far in a few sentences."
+DEFAULT_SUMMARY_INTERVAL = 10  # Summarize every 10 messages
 
 # Reasoning Strategy Configuration
 REASONING_STRATEGIES_FPATH = os.path.join(

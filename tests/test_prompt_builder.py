@@ -100,7 +100,6 @@ class TestPromptBuilderContent:
         [
             ("role", ["professional", "helpful"]),
             ("format", ["markdown"]),
-            ("special_cases", ["Related Topics", "related"]),
         ],
     )
     def test_prompt_sections_contain_keywords(
@@ -122,7 +121,7 @@ class TestPromptBuilderContent:
             ("inference_limits", ["infer", "inference"]),
             ("rejection_format", ["I'm sorry, that information is not known to me."]),
             ("no_fallback", ["fallback", "not use your general knowledge"]),
-            ("examples", ["etymology", "Pharaonic"]),
+            ("examples", ["evolution of languages", "ancient civilizations"]),
         ],
     )
     def test_constraint_enforcement(self, prompt_text, constraint, keywords):

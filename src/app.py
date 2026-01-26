@@ -4,7 +4,7 @@ import os
 # Optional dotenv import (not required in all environments)
 from dotenv import load_dotenv
 
-from config import DATA_DIR
+from config import DATA_DIR, DOCUMENT_TYPES
 from file_utils import load_documents
 from logger import logger
 from rag_assistant import RAGAssistant
@@ -20,7 +20,7 @@ def main():
     """Main function to demonstrate the RAG assistant."""
     try:
         # Load documents
-        documents = load_documents(folder=DATA_DIR, file_extensions=".txt")
+        documents = load_documents(folder=DATA_DIR, file_extensions=DOCUMENT_TYPES)
         logger.info(f"Loaded {len(documents)} documents")
 
         # Initialize the RAG assistant

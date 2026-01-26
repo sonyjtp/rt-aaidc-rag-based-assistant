@@ -215,10 +215,9 @@ class TestSummaryMemory:
     @pytest.mark.parametrize(
         "num_messages,should_update",
         [
-            (4, False),  # Not at 5 yet
-            (5, True),  # Should update at 5
             (9, False),  # Not at 10 yet
             (10, True),  # Should update at 10
+            (20, True),  # Should update at 20
         ],
     )
     def test_summary_updates_at_intervals(self, mock_llm, num_messages, should_update):
@@ -243,7 +242,7 @@ class TestSummaryMemory:
         "num_messages,_has_summary",
         [
             (0, False),
-            (5, True),
+            (5, False),
             (10, True),
         ],
     )

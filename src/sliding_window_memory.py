@@ -5,15 +5,26 @@ Summarizes conversation in fixed-size windows to manage token usage efficiently.
 
 from collections import deque
 
+from config import DEFAULT_MEMORY_SLIDING_WINDOW_SIZE, MEMORY_KEY_PARAM
 from logger import logger
 
 
 class SlidingWindowMemory:
     """Custom memory implementation using sliding window summarization."""
 
-    def __init__(self, llm, window_size: int = 5, memory_key: str = "chat_history"):
+    def __init__(
+        self,
+        llm,
+        window_size: int = DEFAULT_MEMORY_SLIDING_WINDOW_SIZE,
+        memory_key: str = MEMORY_KEY_PARAM,
+    ):
         """
         Initialize sliding window memory.
+        Steps:
+        1. Store LLM for summarization
+        2. Set window size and memory key
+        3. Initialize deque for message storage
+        4. Initialize empty summary string
 
         Args:
             llm: Language model for summarization
@@ -27,7 +38,12 @@ class SlidingWindowMemory:
         self.summary = ""
 
     def save_context(self, inputs: dict, outputs: dict) -> None:
-        """Add a message pair to the sliding window."""
+        """Add a message pair to the sliding window. If window is full, summarize and reset
+
+        Args:
+            inputs: Dictionary with user input text
+            outputs: Dictionary with assistant output text
+        """
         input_text = inputs.get("input", "")
         output_text = outputs.get("output", "")
         self.messages.append({"input": input_text, "output": output_text})
