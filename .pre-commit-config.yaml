@@ -59,7 +59,3 @@ repos:
         pass_filenames: false
         always_run: true
         stages: [pre-commit]
-
-      # Report coverage status (does not modify files)
-      # Note: Removed from commit stage to prevent file modification conflicts
-      # To run manually: python update_coverage.py
