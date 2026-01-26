@@ -4,7 +4,7 @@ Tests constraint enforcement, prompt engineering, and document grounding.
 """
 
 from src.prompt_builder import build_system_prompts
-from src.query_classifier import _TOPIC_KEYWORDS, QUERY_CLASSIFIERS, QueryType
+from src.query_classifier import QUERY_CLASSIFIERS, QueryType
 from src.rag_assistant import RAGAssistant
 
 
@@ -245,32 +245,12 @@ class TestUnsafeKeywordBlocking:
         ), "Should match meta keywords (capabilities)"
         # Priority is determined by check order in _classify_query
 
-    def test_vague_pattern_matches_broad_questions(self):
-        """Test that vague pattern matches broad topic requests and dynamically loaded topics."""
-        vague_pattern = QUERY_CLASSIFIERS["vague"]["pattern"]
-
-        # Test action phrases (these should always match)
-        action_phrases = [
-            "Tell me about historical figures",
-            "Describe consciousness",
-            "Explain ghost towns",
-            "What's an overview of psychology?",
-            "Brief summary of linguistics",
-        ]
-
-        for query in action_phrases:
-            assert vague_pattern.search(
-                query
-            ), f"Vague pattern should match action phrase: {query}"
-
-        # Test dynamically loaded topics (from config)
-        if _TOPIC_KEYWORDS:
-            # Pick a few topics from the loaded list
-            sample_topics = list(_TOPIC_KEYWORDS)[:3]
-            for topic in sample_topics:
-                assert vague_pattern.search(
-                    topic
-                ), f"Vague pattern should match loaded topic: {topic}"
+    def test_vague_detection_handled_by_llm(self):
+        """Test that vague detection is handled by LLM, not regex."""
+        # Vague queries are now detected using LLM with query_vague_detection prompt
+        # This is handled in RAGAssistant._classify_query() method
+        # Verify that vague is not in regex classifiers
+        assert "vague" not in QUERY_CLASSIFIERS
 
     def test_case_insensitive_pattern_matching(self):
         """Test that pattern matching is case-insensitive."""

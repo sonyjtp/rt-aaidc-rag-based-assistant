@@ -1,5 +1,8 @@
 """RAG-based AI assistant using ChromaDB and multiple LLM providers."""
 
+import os
+
+import yaml
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 
@@ -89,20 +92,34 @@ class RAGAssistant:
             logger.warning(f"Unsafe query classified: {query}")
             return QueryType.UNSAFE
 
-        # Priority 2: Check for vague/broad topic questions
-        if QUERY_CLASSIFIERS["vague"]["pattern"].search(query):
-            logger.info(f"Vague question classified: {query}")
-            return QueryType.VAGUE
-
-        # Priority 3: Check for meta-questions (identity/capabilities)
+        # Priority 2: Check for meta-questions (identity/capabilities)
         if QUERY_CLASSIFIERS["meta"]["pattern"].search(query):
-            logger.info(f"Meta-question classified: {query}")
+            logger.debug(f"Meta-question classified: {query}")
             return QueryType.META
 
-        # Priority 4: Check for document/knowledge-base questions
+        # Priority 3: Check for document/knowledge-base questions
         if QUERY_CLASSIFIERS["document"]["pattern"].search(query):
-            logger.info(f"Document question classified: {query}")
+            logger.debug(f"Document question classified: {query}")
             return QueryType.DOCUMENT
+
+        # Priority 4: Use LLM to detect vague/broad topic requests
+        try:
+            config_path = os.path.join(
+                os.path.dirname(__file__), "..", "config", "prompt-config.yaml"
+            )
+            with open(config_path, encoding="utf-8") as f:
+                config = yaml.safe_load(f)
+
+            vague_template = config.get("query_vague_detection", {}).get("template", "")
+            if vague_template:
+                prompt_text = vague_template.format(query=query)
+                response = self.llm.invoke(prompt_text).strip().lower()
+
+                if response in ["yes", "true"]:
+                    logger.info(f"Vague question classified by LLM: {query}")
+                    return QueryType.VAGUE
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logger.debug(f"Error in LLM vague detection: {e}, treating as regular")
 
         # Default: Regular Q&A query
         logger.debug(f"Regular question classified: {query}")
@@ -122,7 +139,7 @@ class RAGAssistant:
         if flat_docs and flat_distances:
             similarity = 1 - flat_distances[0]
             distance = flat_distances[0]
-            logger.info(
+            logger.debug(
                 f"Document search: {query_type.value} question | "
                 f"docs_found={len(flat_docs)} | "
                 f"distance={distance:.3f} | similarity={similarity:.3f} | "
@@ -159,84 +176,6 @@ class RAGAssistant:
 
         return True, ""
 
-    @staticmethod
-    def is_vague_incomplete(query: str) -> bool:
-        """
-        Detect if query is vague/incomplete (simple topic name without action verbs).
-
-        Uses pattern-based detection - scalable without hardcoded lists.
-
-        Examples of vague queries:
-        - "psychology"
-        - "human-machine interaction"
-        - "contemporary art"
-        - "quantum cryptography"
-
-        Examples of complete queries:
-        - "Tell me about psychology"
-        - "What is human-machine interaction?"
-        - "Explain contemporary art"
-        - "yes", "no" (have punctuation or are very simple)
-
-        Examples of follow-up responses (NOT prefixed):
-        - Single words that are responses/acknowledgments
-        - Anything with action verbs or questions
-        """
-        query_lower = query.lower().strip()
-
-        # If query has punctuation marks, it's likely a complete thought or response
-        if any(char in query_lower for char in ["?", "!", ".", ","]):
-            return False
-
-        # If query already has action verbs or question markers, it's complete
-        action_phrases = [
-            "tell",
-            "explain",
-            "describe",
-            "show",
-            "give",
-            "provide",
-            "what",
-            "how",
-            "why",
-            "who",
-            "when",
-            "where",
-            "which",
-            "is",
-            "are",
-            "was",
-            "were",
-            "been",
-            "be",
-            "can",
-            "could",
-            "would",
-            "should",
-            "will",
-            "shall",
-            "may",
-            "might",
-            "do",
-            "does",
-            "did",
-            "have",
-            "has",
-            "had",
-        ]
-        if any(phrase in query_lower for phrase in action_phrases):
-            return False
-
-        # If query is a single word, it's likely a response/topic name (not vague)
-        # Don't prefix single words - they're either follow-ups or proper topics
-        word_count = len(query.split())
-        if word_count == 1:
-            return False
-
-        # Multi-word (2-3 words) queries without verbs are vague topic names
-        # Examples: "psychology", "contemporary art", "human-machine interaction"
-        return word_count <= 3
-
     def add_documents(self, documents: list[str] | list[dict[str, str]]) -> None:
         """
         # ...existing code...
@@ -254,15 +193,7 @@ class RAGAssistant:
         Returns:
             String answer from the LLM based on retrieved context and query type
         """
-        # Auto-prefix vague/incomplete queries for better matching
-        original_query = query
-        if self.is_vague_incomplete(query):
-            query = f"Tell me about {query}"
-            logger.info(
-                f"Vague query detected, prefixed: '{original_query}' → '{query}'"
-            )
-
-        # Classify query (priority order: unsafe > vague > meta > document > regular)
+        # Classify query (priority order: unsafe > meta > document > vague > regular)
         query_type = self._classify_query(query)
         logger.debug(f"Query classified as: {query_type.value}")
 
@@ -311,7 +242,7 @@ class RAGAssistant:
 
         try:
             response = self.chain.invoke({"context": context, "question": query})
-            logger.info(f"Response generated for {query_type.value} question")
+            logger.debug(f"Response generated for {query_type.value} question")
         except Exception as e:  # pylint: disable=broad-exception-caught
             logger.error(f"Error invoking chain: {e}")
             return (

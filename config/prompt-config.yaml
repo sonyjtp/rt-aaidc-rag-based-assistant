@@ -76,3 +76,23 @@ rag-assistant-system-prompt-formal:
     - After your answer, include a separate section titled "Related Topics You Can Explore" with 2-3 specific topics or subtopics from the publications that relate to the user's question.
     - Make it clear these are additional topics for exploration, not part of the answer.
     - "Format the related topics section exactly like this example: Related Topics You Can Explore: quantum computing, AI ethics, machine learning applications"
+
+query_vague_detection:
+  template: |
+    Determine if this query is asking for a broad overview, topic introduction, or asking about available topics.
+
+    Query: "{query}"
+
+    A vague query is one where the user is:
+    - Asking about a general topic area (e.g., "psychology", "AI ethics")
+    - Requesting an overview or introduction (e.g., "tell me about quantum", "explain consciousness")
+    - Asking what topics are available (e.g., "what else do you know about?", "other topics you know about")
+    - Using broad exploratory language without specific information requests
+
+    A specific query is one where the user asks about:
+    - A particular fact or concept (e.g., "What is consciousness?", "How does quantum cryptography work?")
+    - Relationships between concepts (e.g., "How are psychology and philosophy related?")
+    - Specific details or examples (e.g., "Name ancient civilizations", "What are contemporary art movements?")
+
+    Respond with ONLY "yes" if the query is vague/broad, "no" if it is specific.
+  description: "Detect vague/broad topic requests using LLM classification"
