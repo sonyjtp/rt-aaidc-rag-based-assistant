@@ -1,12 +1,15 @@
 """RAG-based AI assistant using ChromaDB and multiple LLM providers."""
 from langchain_core.output_parsers import StrOutputParser
-from langchain_core.prompts import ChatPromptTemplate
 
 from config import DISTANCE_THRESHOLD, RETRIEVAL_K
 from llm_utils import initialize_llm
 from logger import logger
 from memory_manager import MemoryManager
-from prompt_builder import build_system_prompts
+from prompt_builder import (
+    build_system_prompts,
+    create_prompt_template,
+    get_default_system_prompts,
+)
 from reasoning_strategy_loader import ReasoningStrategyLoader
 from vectordb import VectorDB
 
@@ -26,64 +29,76 @@ class RAGAssistant:
         4. Initialize reasoning strategy
         5. Build prompt template and LLM chain
         """
+        self.llm = None
+        self.vector_db = None
+        self.memory_manager = None
+        self.reasoning_strategy = None
+        self.prompt_template = None
+        self.chain = None
 
-        # Initialize LLM
-        self.llm = initialize_llm()
-        logger.info(f"LLM: {self.llm.model_name}")
+        self._initialize_llm()
+        self._initialize_vector_db()
+        self._initialize_memory()
+        self._initialize_reasoning_strategy()
+        self._build_chain()
 
-        # Initialize vector database for document retrieval, chunking, and embeddings
-        self.vector_db = VectorDB()
+    def _initialize_llm(self) -> None:
+        """Initialize the LLM."""
+        try:
+            self.llm = initialize_llm()
+            logger.info(f"LLM: {self.llm.model_name}")
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logger.error(f"Error initializing LLM: {e}")
+            self.llm = None
 
-        # Initialize conversation memory
-        self.memory_manager = MemoryManager(llm=self.llm)
-        if self.memory_manager.memory:
-            logger.info(
-                f"Memory manager initialized with strategy: {self.memory_manager.strategy}"
-            )
+    def _initialize_vector_db(self) -> None:
+        """Initialize the vector database."""
+        try:
+            self.vector_db = VectorDB()
+            logger.info("Vector database  initialized.")
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logger.error(f"Error initializing vector database: {e}")
+            self.vector_db = None
 
-        # Initialize reasoning strategy
+    def _initialize_memory(self) -> None:
+        """Initialize conversation memory."""
+        try:
+            self.memory_manager = MemoryManager(llm=self.llm)
+            if self.memory_manager.memory:
+                logger.info(f"Memory strategy: {self.memory_manager.strategy}")
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logger.error(f"Error initializing memory: {e}")
+            self.memory_manager = None
+
+    def _initialize_reasoning_strategy(self) -> None:
+        """Initialize reasoning strategy."""
         try:
             self.reasoning_strategy = ReasoningStrategyLoader()
             logger.info(
-                f"Reasoning strategy loaded: {self.reasoning_strategy.get_strategy_name()}"
+                f"Reasoning strategy: {self.reasoning_strategy.get_strategy_name()}"
             )
         except Exception as e:  # pylint: disable=broad-exception-caught
-            logger.error(f"Error loading reasoning strategy: {e}")
+            logger.error(f"Error initializing reasoning strategy: {e}")
             self.reasoning_strategy = None
 
-        self._build_chain()
-
-    def _build_chain(self):
+    def _build_chain(self) -> None:
         """Build the prompt template and LLM chain."""
+        if not self.llm:
+            logger.warning("LLM not initialized. Skipping chain building.")
+            return
+
         try:
-            system_prompts = build_system_prompts()
+            system_prompts = build_system_prompts(self.reasoning_strategy)
         except Exception as e:  # pylint: disable=broad-exception-caught
             logger.warning(
                 f"Could not build system prompts: {e}. Using default prompts."
             )
-            # Use a minimal default prompt if system prompts fail to build
-            system_prompts = [
-                "You are a helpful AI assistant.",
-                "Answer questions based only on the provided documents.",
-                "If you cannot find the answer in the documents, say so.",
-            ]
+            # Falling back to default prompts
+            system_prompts = get_default_system_prompts()
 
-        self.prompt_template = ChatPromptTemplate.from_messages(
-            [
-                ("system", "\n".join(system_prompts)),
-                (
-                    "human",
-                    """Previous conversation context:
-{chat_history}
+        self.prompt_template = create_prompt_template(system_prompts)
+        logger.debug("Prompt template created.")
 
-Context from documents:
-{context}
-
-Question: {question}""",
-                ),
-            ]
-        )
-        logger.info("Prompt template for RAG Assistant created from system prompts.")
         self.chain = self.prompt_template | self.llm | StrOutputParser()
         logger.info("Function chain with prompt template, LLM, and parser built.")
 
@@ -144,7 +159,7 @@ Question: {question}""",
         similarity_scores = [1 - dist for dist in flat_distances]
         for i, (doc, sim_score) in enumerate(zip(truncated_docs, similarity_scores)):
             logger.debug(
-                f"Retrieved Result {i+1}: {doc}, similarity_score: {sim_score}"
+                f"Retrieved Result {i + 1}: {doc}, similarity_score: {sim_score}"
             )
 
     def invoke(self, query: str, n_results: int = RETRIEVAL_K) -> str:
@@ -158,29 +173,23 @@ Question: {question}""",
         Returns:
             String answer from the LLM based on retrieved context
         """
+        if not self.chain:
+            return "RAG Assistant is not properly initialized."
 
         try:
             search_results = self.vector_db.search(
                 query=query, n_results=n_results, maximum_distance=DISTANCE_THRESHOLD
             )
         except ValueError as e:
-            # Handle configuration errors (e.g., embedding dimension mismatch)
-            # without exposing technical details to the user
             logger.error(f"Configuration error during search: {e}")
             return (
                 "I'm unable to search the documents at the moment due to a system "
                 "configuration issue. Please try again later or contact support."
             )
 
-        # Flatten search results using the helper method
         flat_docs, flat_distances = self._flatten_search_results(search_results)
-
-        # Log search results for debugging
         self._log_search_results(flat_docs, flat_distances)
 
-        # Use documents only if they meet similarity threshold
-        # Otherwise pass empty context and let system prompts guide the response
-        # System prompts already handle: meta-questions, greetings, out-of-scope questions
         context = (
             "\n".join(flat_docs)
             if flat_docs
@@ -189,8 +198,11 @@ Question: {question}""",
         )
 
         try:
-            # Prepare chain inputs with context, question, and memory
-            memory_vars = self.memory_manager.get_memory_variables()
+            memory_vars = (
+                self.memory_manager.get_memory_variables()
+                if self.memory_manager
+                else {}
+            )
             chain_inputs = {
                 "context": context,
                 "question": query,
@@ -206,11 +218,10 @@ Question: {question}""",
                 "Please try again."
             )
 
-        # Debug: Log the final query result
         logger.debug(f"Query: {query}")
         logger.debug(f"Query Result: {response}")
 
-        # Save conversation to memory manager
-        self.memory_manager.add_message(input_text=query, output_text=response)
+        if self.memory_manager:
+            self.memory_manager.add_message(input_text=query, output_text=response)
 
         return response

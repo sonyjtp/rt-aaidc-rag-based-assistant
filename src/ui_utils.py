@@ -58,9 +58,8 @@ def validate_and_filter_topics(response: str) -> str:
 def load_custom_styles() -> None:
     """Load custom CSS styles from static/css/styles.css file."""
     # Get the path to the styles.css file relative to the project root
-    # __file__ is in src/utils/, so go up 2 directories to reach project root
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    src_dir = os.path.dirname(current_dir)
+    # __file__ is in src/, so go up 1 directory to reach project root
+    src_dir = os.path.dirname(os.path.abspath(__file__))
     project_root = os.path.dirname(src_dir)
     styles_path = os.path.join(project_root, "static", "css", "styles.css")
 

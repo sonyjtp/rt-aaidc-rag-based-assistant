@@ -5,7 +5,6 @@ Loads reasoning strategy configurations and provides methods to apply them.
 
 import config
 from file_utils import load_yaml
-from logger import logger
 
 
 class ReasoningStrategyLoader:
@@ -23,7 +22,6 @@ class ReasoningStrategyLoader:
         self.config_path = config_path
         self.strategies = load_yaml(config_path).get("reasoning_strategies", {})
         self.active_strategy = config.REASONING_STRATEGY
-        logger.debug(f"Reasoning strategy loaded from config: {self.config_path}")
 
     def get_active_strategy(self) -> dict:
         """

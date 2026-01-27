@@ -57,6 +57,22 @@ class TestRAGAssistantInitialization:
         assert assistant.chain is not None
         assert assistant.prompt_template is not None
 
+    def test_initialize_llm_success(self, mock_components):
+        """Test successful LLM initialization."""
+        assistant = RAGAssistant()
+
+        mock_components["llm"].assert_called_once()
+        assert assistant.llm is not None
+
+    def test_initialize_llm_failure(self, mock_components):
+        """Test graceful handling of LLM initialization failure."""
+        mock_components["llm"].side_effect = Exception("LLM initialization failed")
+
+        assistant = RAGAssistant()
+
+        assert assistant.llm is None
+        assert assistant.chain is None
+
     @pytest.mark.parametrize(
         "model_name",
         [
@@ -74,26 +90,56 @@ class TestRAGAssistantInitialization:
         mock_components["llm"].assert_called_once()
         assert assistant.llm.model_name == model_name
 
-    def test_vectordb_initialization(self, mock_components):
-        """Test that VectorDB is properly initialized."""
+    def test_initialize_vector_db_success(self, mock_components):
+        """Test successful vector database initialization."""
         assistant = RAGAssistant()
 
         mock_components["vectordb"].assert_called_once()
         assert assistant.vector_db is not None
 
-    def test_memory_manager_initialization(self, mock_components):
-        """Test that MemoryManager is properly initialized."""
+    def test_initialize_vector_db_failure(self, mock_components):
+        """Test graceful handling of VectorDB initialization failure."""
+        mock_components["vectordb"].side_effect = Exception(
+            "VectorDB initialization failed"
+        )
+
         assistant = RAGAssistant()
 
-        mock_components["memory"].assert_called_once_with(llm=assistant.llm)
+        assert assistant.vector_db is None
+
+    def test_initialize_memory_success(self, mock_components):
+        """Test successful memory manager initialization."""
+        assistant = RAGAssistant()
+
+        mock_components["memory"].assert_called_once()
         assert assistant.memory_manager is not None
 
-    def test_reasoning_strategy_initialization(self, mock_components):
-        """Test that ReasoningStrategyLoader is properly initialized."""
+    def test_initialize_memory_failure(self, mock_components):
+        """Test graceful handling of memory manager initialization failure."""
+        mock_components["memory"].side_effect = Exception(
+            "Memory initialization failed"
+        )
+
+        assistant = RAGAssistant()
+
+        assert assistant.memory_manager is None
+
+    def test_initialize_reasoning_strategy_success(self, mock_components):
+        """Test successful reasoning strategy initialization."""
         assistant = RAGAssistant()
 
         mock_components["reasoning"].assert_called_once()
         assert assistant.reasoning_strategy is not None
+
+    def test_initialize_reasoning_strategy_failure(self, mock_components):
+        """Test graceful handling of reasoning strategy initialization failure."""
+        mock_components["reasoning"].side_effect = Exception(
+            "Reasoning strategy initialization failed"
+        )
+
+        assistant = RAGAssistant()
+
+        assert assistant.reasoning_strategy is None
 
     def test_chain_building(self, mock_components):  # pylint: disable=unused-argument
         """Test that prompt template and chain are built correctly."""
@@ -292,9 +338,9 @@ class TestRAGAssistantExceptionHandling:
             "Failed to connect to ChromaDB"
         )
 
-        # Should raise exception during initialization
-        with pytest.raises(Exception):
-            RAGAssistant()
+        assistant = RAGAssistant()
+
+        assert assistant.vector_db is None
 
     def test_reasoning_strategy_load_error(self, mock_components):
         """Test handling of ReasoningStrategyLoader errors."""

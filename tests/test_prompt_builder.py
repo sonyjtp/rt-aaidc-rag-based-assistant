@@ -6,8 +6,13 @@ Tests prompt construction, constraint enforcement, and reasoning strategy integr
 from unittest.mock import MagicMock, patch
 
 import pytest
+from langchain_core.prompts import ChatPromptTemplate
 
-from src.prompt_builder import build_system_prompts
+from src.prompt_builder import (
+    build_system_prompts,
+    create_prompt_template,
+    get_default_system_prompts,
+)
 
 
 @pytest.fixture
@@ -200,3 +205,122 @@ class TestPromptBuilderStrategy:
         prompts = build_system_prompts()
 
         assert len(prompts) > 0
+
+    def test_build_system_prompts_with_reasoning_strategy(self):
+        """Test that reasoning_strategy parameter is used when provided."""
+        mock_strategy = MagicMock()
+        mock_strategy.is_strategy_enabled.return_value = True
+        mock_strategy.get_strategy_instructions.return_value = [
+            "Custom instruction 1",
+            "Custom instruction 2",
+        ]
+        mock_strategy.get_strategy_name.return_value = "Custom Strategy"
+
+        prompts = build_system_prompts(reasoning_strategy=mock_strategy)
+        prompt_text = "\n".join(prompts)
+
+        assert "Custom instruction" in prompt_text
+
+    def test_build_system_prompts_without_reasoning_strategy(self):
+        """Test that build_system_prompts works without reasoning_strategy."""
+        prompts = build_system_prompts(reasoning_strategy=None)
+
+        assert isinstance(prompts, list)
+        assert len(prompts) > 0
+
+
+# pylint: disable=redefined-outer-name
+class TestGetDefaultSystemPrompts:
+    """Test cases for get_default_system_prompts function."""
+
+    def test_returns_list(self):
+        """Test that get_default_system_prompts returns a list."""
+        prompts = get_default_system_prompts()
+        assert isinstance(prompts, list)
+        assert len(prompts) > 0
+
+    def test_returns_non_empty_strings(self):
+        """Test that all prompts are non-empty strings."""
+        prompts = get_default_system_prompts()
+        for prompt in prompts:
+            assert isinstance(prompt, str)
+            assert len(prompt) > 0
+
+    def test_contains_key_instructions(self):
+        """Test that default prompts contain key instructions."""
+        prompts = get_default_system_prompts()
+        prompt_text = "\n".join(prompts)
+
+        key_phrases = [
+            "helpful AI assistant",
+            "provided documents",
+            "do not",
+            "make up",
+        ]
+        for phrase in key_phrases:
+            assert phrase.lower() in prompt_text.lower()
+
+    def test_includes_meta_handling(self):
+        """Test that default prompts include handling for meta questions."""
+        prompts = get_default_system_prompts()
+        prompt_text = "\n".join(prompts)
+
+        assert (
+            "identity" in prompt_text.lower() or "capabilities" in prompt_text.lower()
+        )
+        assert "greeting" in prompt_text.lower()
+
+
+# pylint: disable=redefined-outer-name
+class TestCreatePromptTemplate:
+    """Test cases for create_prompt_template function."""
+
+    def test_returns_chat_prompt_template(self):
+        """Test that create_prompt_template returns a ChatPromptTemplate."""
+        system_prompts = ["You are a helpful assistant."]
+        template = create_prompt_template(system_prompts)
+
+        assert isinstance(template, ChatPromptTemplate)
+
+    def test_includes_system_prompts(self):
+        """Test that the template includes the provided system prompts."""
+        system_prompts = ["You are a test assistant.", "Follow these rules."]
+        template = create_prompt_template(system_prompts)
+
+        # Verify the template was created successfully
+        assert template is not None
+        assert len(template.messages) > 0
+
+    def test_template_has_required_variables(self):
+        """Test that the template includes required input variables."""
+        system_prompts = ["You are a helpful assistant."]
+        template = create_prompt_template(system_prompts)
+
+        # Check that required variables are in the template
+        assert "chat_history" in str(template)
+        assert "context" in str(template)
+        assert "question" in str(template)
+
+    def test_empty_system_prompts(self):
+        """Test that create_prompt_template handles empty prompts list."""
+        system_prompts = []
+        template = create_prompt_template(system_prompts)
+
+        assert template is not None
+        assert isinstance(template, ChatPromptTemplate)
+
+    @pytest.mark.parametrize(
+        "system_prompts,expected_count",
+        [
+            (["Prompt 1"], 1),
+            (["Prompt 1", "Prompt 2"], 2),
+            (["Prompt 1", "Prompt 2", "Prompt 3"], 3),
+        ],
+    )
+    def test_multiple_system_prompts(self, system_prompts, expected_count):
+        """Test that multiple system prompts are joined correctly."""
+        template = create_prompt_template(system_prompts)
+
+        assert template is not None
+        for prompt in system_prompts:
+            assert prompt in str(template)

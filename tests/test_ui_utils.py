@@ -4,6 +4,7 @@ from unittest.mock import mock_open, patch
 
 import pytest
 
+# pylint: disable=protected-access
 from src.ui_utils import (
     _get_valid_topics_from_documents,
     configure_page,
@@ -18,10 +19,9 @@ def ui_mocks():
     with patch("src.ui_utils.st") as mock_st, patch(
         "src.ui_utils.os.path.dirname"
     ) as mock_dirname, patch("src.ui_utils.os.path.abspath") as mock_abspath:
-        mock_abspath.return_value = "/project/src/utils/ui_utils.py"
+        mock_abspath.return_value = "/project/src/ui_utils.py"
         mock_dirname.side_effect = [
-            "/project/src/utils",  # dirname of __file__
-            "/project/src",  # dirname of src/utils
+            "/project/src",  # dirname of __file__
             "/project",  # dirname of src
         ]
         yield {

@@ -35,7 +35,7 @@ class ChromaDBClient:
 
         # Initialize the CloudClient
         self.client = self._initialize_client()
-        logger.info("ChromaDB client initialized.")
+        logger.debug("ChromaDB client initialized.")
 
     def _initialize_client(self) -> chromadb.api.ClientAPI:
         """

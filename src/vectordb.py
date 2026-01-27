@@ -34,7 +34,7 @@ class VectorDB:
         self.collection = ChromaDBClient().get_or_create_collection(
             COLLECTION_NAME_DEFAULT
         )
-        logger.info(f"Vector database collection {self.collection.name} ready for use")
+        logger.debug(f"Vector database collection: {self.collection.name}")
 
         # Initialize embedding model for document embeddings
         self.embedding_model = initialize_embedding_model()
