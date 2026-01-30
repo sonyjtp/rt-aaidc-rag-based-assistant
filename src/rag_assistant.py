@@ -1,4 +1,7 @@
 """RAG-based AI assistant using ChromaDB and multiple LLM providers."""
+
+# pylint: disable=no-name-in-module, import-error
+
 import time
 
 from langchain_core.output_parsers import StrOutputParser
@@ -258,7 +261,6 @@ class RAGAssistant:
         if not self.chain:
             return "RAG Assistant is not properly initialized."
 
-        # ...existing code...
         search_query = self._augment_query_with_context(query)
 
         try:

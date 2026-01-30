@@ -2,7 +2,7 @@
 LLM-related fixtures for testing.
 """
 
-# pylint: disable=import-error
+# pylint: disable=import-error, redefined-outer-name
 
 from unittest.mock import MagicMock, patch
 
@@ -60,40 +60,6 @@ def llm_provider_patch(provider_config):
         "class": MagicMock(),
     }
     return patch("src.llm_utils.LLM_PROVIDERS", [provider])
-
-
-# Pre-configured provider patches for common use cases
-def groq_provider_patch():
-    """Patch for Groq provider."""
-    return llm_provider_patch(
-        {
-            "api_key_env": "GROQ_API_KEY",
-            "model_env": "GROQ_MODEL",
-            "default_model": "llama-3.1-8b-instant",
-        }
-    )
-
-
-def openai_provider_patch():
-    """Patch for OpenAI provider."""
-    return llm_provider_patch(
-        {
-            "api_key_env": "OPENAI_API_KEY",
-            "model_env": "OPENAI_MODEL",
-            "default_model": "gpt-4o-mini",
-        }
-    )
-
-
-def google_provider_patch():
-    """Patch for Google Gemini provider."""
-    return llm_provider_patch(
-        {
-            "api_key_env": "GOOGLE_API_KEY",
-            "model_env": "GOOGLE_MODEL",
-            "default_model": "gemini-1.5-flash",
-        }
-    )
 
 
 # ============================================================================

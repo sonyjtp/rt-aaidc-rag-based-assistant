@@ -2,9 +2,13 @@
 Fixtures for VectorDB-related tests.
 """
 
-from unittest.mock import MagicMock
+# pylint: disable=redefined-outer-name
+
+from unittest.mock import MagicMock, patch
 
 import pytest
+
+from src.vectordb import VectorDB
 
 
 @pytest.fixture
@@ -61,3 +65,24 @@ def vectordb_mocks(vectordb_chroma_mock, vectordb_embedding_mock):
         "collection": mock_collection,
         "embedding_model": mock_embedding_model,
     }
+
+
+@pytest.fixture
+def patched_vectordb(vectordb_mocks):
+    """
+    Fixture providing a VectorDB instance with mocked dependencies.
+
+    Returns:
+        tuple: (VectorDB instance, mocks dict)
+    """
+
+    with patch("src.vectordb.ChromaDBClient") as mock_chroma_class, patch(
+        "src.vectordb.initialize_embedding_model"
+    ) as mock_embedding_func:
+        mock_chroma_class.return_value = vectordb_mocks["chroma_instance"]
+        mock_embedding_func.return_value = vectordb_mocks["embedding_model"]
+
+        vdb = VectorDB()
+
+        # Yield the instance and mocks for the test
+        yield vdb, vectordb_mocks
