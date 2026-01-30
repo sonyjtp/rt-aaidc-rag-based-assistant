@@ -108,8 +108,8 @@ CHUNK_OVERLAP = 200  # Increased from 100 (20% overlap) for better context
 TEXT_SPLITTER_SEPARATORS = ["\n\n", "\n", ". ", " ", ""]
 
 # Retrieval Configuration
-RETRIEVAL_K = 5  # Increased from 3 to get more candidates
-DISTANCE_THRESHOLD = 0.7
+RETRIEVAL_K = 3
+DISTANCE_THRESHOLD = 0.6
 
 
 # ============================================================================

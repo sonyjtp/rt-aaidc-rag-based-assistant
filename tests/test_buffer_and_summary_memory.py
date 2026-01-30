@@ -3,18 +3,10 @@ Comprehensive tests for SimpleBufferMemory and SummaryMemory implementations.
 Tests both memory strategies with parametrized scenarios to avoid duplication.
 """
 
-from unittest.mock import MagicMock
-
 import pytest
 
 from src.simple_buffer_memory import SimpleBufferMemory
 from src.summary_memory import SummaryMemory
-
-
-@pytest.fixture
-def mock_llm():
-    """Fixture providing a mocked LLM instance."""
-    return MagicMock()
 
 
 # pylint: disable=redefined-outer-name
@@ -139,24 +131,20 @@ class TestSimpleBufferMemory:
     # ERROR HANDLING TESTS
     # ========================================================================
 
-    def test_save_context_error_handling(self):
-        """Test save_context handles exceptions gracefully."""
+    @pytest.mark.parametrize(
+        "input_text,output_text",
+        [
+            ("", ""),  # Empty inputs
+            ("Test", "Response"),  # Normal inputs
+        ],
+    )
+    def test_save_context_handles_inputs(self, input_text, output_text):
+        """Test save_context handles various inputs gracefully."""
         memory = SimpleBufferMemory()
-        # Pass invalid inputs that would cause errors
-        try:
-            memory.save_context(inputs={"input": ""}, outputs={"output": ""})
-        except Exception:  # pylint: disable=broad-exception-caught
-            pass
+        memory.save_context(
+            inputs={"input": input_text}, outputs={"output": output_text}
+        )
 
-        # Should not raise, but gracefully handle
-        assert len(memory.buffer) == 0
-
-    def test_load_memory_variables_error_handling(self):
-        """Test load_memory_variables handles errors gracefully."""
-        memory = SimpleBufferMemory()
-        memory.save_context(inputs={"input": "Test"}, outputs={"output": "Response"})
-
-        # Call with valid inputs
         variables = memory.load_memory_variables()
 
         assert isinstance(variables, dict)

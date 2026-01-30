@@ -15,21 +15,36 @@ reasoning_strategies:
       - "Questions requiring logical deduction"
       - "Mathematical or analytical problems"
 
-  self_consistency:
-    name: "Self-Consistency"
-    description: "Generate multiple reasoning paths and select the most consistent or common answer. Improves reliability and accuracy."
+  react:
+    name: "ReAct (Reasoning + Acting)"
+    description: "Interleaves reasoning and acting in a cyclical manner. The model reasons about what to do, takes an action (e.g., search, retrieve), observes the result, and repeats. Useful for dynamic problem-solving."
     enabled: false
     prompt_instructions:
-      - "Consider this question from multiple angles."
-      - "Provide your best reasoning path to the answer."
-    example_prefix: "Based on my analysis from multiple perspectives:"
+      - "Use the following format: Thought, Action, Observation, Thought, Action, Observation, ... until you reach a Conclusion."
+      - "Thought: Consider what you need to do next."
+      - "Action: Take a concrete action (e.g., search documents, retrieve information, calculate)."
+      - "Observation: Analyze the result of your action."
+      - "Repeat this cycle until you have enough information to provide a complete answer."
+      - "Conclusion: Provide your final answer based on your observations."
+    action_types:
+      - "retrieve_document"
+      - "search_knowledge_base"
+      - "calculate"
+      - "analyze_context"
+      - "synthesize_information"
     use_cases:
-      - "Ambiguous questions"
-      - "Questions with multiple valid interpretations"
-      - "When high confidence is needed"
-    parameters:
-      num_paths: 3
-      selection_method: "majority_vote"
+      - "Multi-step problem-solving requiring intermediate information"
+      - "Interactive question answering with document retrieval loops"
+      - "Complex queries requiring multiple rounds of reasoning and action"
+      - "Questions where you need to refine searches based on initial results"
+    example_interaction:
+      - thought: "I need to understand what quantum cryptography is. Let me search for relevant information."
+      - action: "search_knowledge_base: quantum cryptography definition"
+      - observation: "Found documents about quantum key distribution, BB84 protocol, and security implications."
+      - thought: "Good, I have foundational information. Now I need to find specific applications."
+      - action: "retrieve_document: quantum cryptography applications"
+      - observation: "Document mentions government communications, financial institutions, and quantum internet."
+      - conclusion: "Based on my retrieval and analysis, quantum cryptography is... with applications in..."
 
   few_shot_prompting:
     name: "Few-Shot Prompting"
@@ -49,25 +64,6 @@ reasoning_strategies:
       - "Teaching the model a specific style"
       - "Demonstrating desired level of detail"
 
-  structured_prompting:
-    name: "Structured Prompting"
-    description: "Uses templates and format specifications to ensure consistent, parseable outputs."
-    enabled: true
-    prompt_instructions:
-      - "Format your answer according to this structure:"
-      - "1. Direct answer"
-      - "2. Supporting details (2-3 bullet points)"
-      - "3. Related topics for exploration"
-    output_format:
-      type: "markdown"
-      max_length: "5 lines"
-      use_bullets: true
-      include_related_topics: true
-    use_cases:
-      - "Ensuring consistency across responses"
-      - "Structured data extraction"
-      - "Multi-part answers"
-
   metacognitive_prompting:
     name: "Metacognitive Prompting"
     description: "Asks the model to reflect on its confidence, limitations, and uncertainty. Promotes honesty and awareness of boundaries."
@@ -85,23 +81,6 @@ reasoning_strategies:
       - "Building trust with users"
       - "Preventing hallucinations"
       - "Honest capability assessment"
-
-  tree_of_thought:
-    name: "Tree-of-Thought (ToT)"
-    description: "Explores multiple reasoning paths simultaneously and evaluates them. Complex but powerful for difficult problems."
-    enabled: false
-    prompt_instructions:
-      - "Explore multiple possible approaches to this question."
-      - "For each approach, consider its strengths and weaknesses."
-      - "Select the most promising approach based on your evaluation."
-      - "Provide the answer using the best reasoning path."
-    parameters:
-      max_branches: 3
-      evaluation_criteria: "accuracy, relevance, completeness"
-    use_cases:
-      - "Complex decision-making"
-      - "Problems with multiple solution paths"
-      - "Exploration-heavy questions"
 
   rag_enhanced_reasoning:
     name: "RAG-Enhanced Reasoning"
@@ -126,32 +105,11 @@ reasoning_strategies:
       - "Document-based Q&A"
       - "Knowledge-grounded reasoning"
 
-  hybrid_reasoning:
-    name: "Hybrid Reasoning"
-    description: "Combines multiple reasoning strategies for enhanced results."
-    enabled: false
-    strategies:
-      - "rag_enhanced_reasoning"
-      - "chain_of_thought"
-      - "metacognitive_prompting"
-    configuration:
-      primary_strategy: "rag_enhanced_reasoning"
-      secondary_strategies:
-        - "chain_of_thought"
-        - "metacognitive_prompting"
-      fallback_strategy: "structured_prompting"
-    use_cases:
-      - "Complex multi-faceted questions"
-      - "When maximum accuracy is needed"
-      - "Requiring both reasoning and honesty about limitations"
-
 active_strategy: "rag_enhanced_reasoning"
 
 strategy_selection_guide:
   simple_factual_questions: "rag_enhanced_reasoning"
   complex_analytical_questions: "chain_of_thought"
   ambiguous_questions: "self_consistency"
-  requiring_specific_format: "structured_prompting"
+  dynamic_problem_solving: "react"
   requiring_transparency: "metacognitive_prompting"
-  exploration_heavy: "tree_of_thought"
-  production_mode: "hybrid_reasoning"

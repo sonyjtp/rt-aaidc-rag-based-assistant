@@ -3,6 +3,8 @@ Unit tests for reasoning strategy functionality.
 Tests strategy loading, application, and configuration.
 """
 
+# pylint: disable=redefined-outer-name
+
 from unittest.mock import patch
 
 import pytest
@@ -10,13 +12,27 @@ import pytest
 from src.reasoning_strategy_loader import ReasoningStrategyLoader
 
 
-class TestReasoningStrategyLoaderInitialization:
-    """Test ReasoningStrategyLoader initialization."""
+@pytest.fixture
+def mock_yaml_and_config():
+    """Fixture providing mocked YAML loader and config."""
+    with patch("src.reasoning_strategy_loader.load_yaml") as mock_load_yaml, patch(
+        "src.reasoning_strategy_loader.config"
+    ) as mock_config:
+        yield mock_config, mock_load_yaml
 
-    @patch("src.reasoning_strategy_loader.load_yaml")
-    @patch("src.reasoning_strategy_loader.config")
-    def test_initialization_success(self, mock_config, mock_load_yaml):
+
+class TestReasoningStrategyLoader:
+    """Unified test class for ReasoningStrategyLoader covering all functionality."""
+
+    # ========================================================================
+    # INITIALIZATION TESTS
+    # ========================================================================
+
+    def test_initialization_success(
+        self, mock_yaml_and_config
+    ):  # pylint: disable=redefined-outer-name
         """Test successful initialization of ReasoningStrategyLoader."""
+        mock_config, mock_load_yaml = mock_yaml_and_config
         mock_config.REASONING_STRATEGIES_FPATH = "/path/to/strategies.yaml"
         mock_config.REASONING_STRATEGY = "rag_enhanced_reasoning"
 
@@ -35,10 +51,11 @@ class TestReasoningStrategyLoaderInitialization:
         assert loader.active_strategy == "rag_enhanced_reasoning"
         assert loader.strategies is not None
 
-    @patch("src.reasoning_strategy_loader.load_yaml")
-    @patch("src.reasoning_strategy_loader.config")
-    def test_custom_config_path(self, mock_config, mock_load_yaml):
+    def test_custom_config_path(
+        self, mock_yaml_and_config
+    ):  # pylint: disable=redefined-outer-name
         """Test initialization with custom config path."""
+        mock_config, mock_load_yaml = mock_yaml_and_config
         mock_config.REASONING_STRATEGIES_FPATH = "/default/path.yaml"
         mock_config.REASONING_STRATEGY = "test_strategy"
 
@@ -49,76 +66,62 @@ class TestReasoningStrategyLoaderInitialization:
         custom_path = "/custom/path.yaml"
         ReasoningStrategyLoader(config_path=custom_path)
 
-        # Should use provided custom path
         mock_load_yaml.assert_called_with(custom_path)
 
+    # ========================================================================
+    # RETRIEVAL TESTS
+    # ========================================================================
 
-class TestReasoningStrategyRetrieval:
-    """Test retrieving reasoning strategy information."""
-
-    @patch("src.reasoning_strategy_loader.load_yaml")
-    @patch("src.reasoning_strategy_loader.config")
-    def test_get_active_strategy(self, mock_config, mock_load_yaml):
-        """Test retrieving active strategy configuration."""
-        mock_config.REASONING_STRATEGIES_FPATH = "/path/to/strategies.yaml"
-        mock_config.REASONING_STRATEGY = "chain_of_thought"
-
-        mock_load_yaml.return_value = {
-            "reasoning_strategies": {
-                "chain_of_thought": {
+    @pytest.mark.parametrize(
+        "strategy_key,config_data,method,expected_result",
+        [
+            (
+                "chain_of_thought",
+                {
                     "name": "Chain-of-Thought",
                     "enabled": True,
                     "description": "Step by step reasoning",
-                }
-            }
-        }
-
-        loader = ReasoningStrategyLoader()
-        strategy = loader.get_active_strategy()
-
-        assert strategy["name"] == "Chain-of-Thought"
-        assert strategy["enabled"] is True
-
-    @patch("src.reasoning_strategy_loader.load_yaml")
-    @patch("src.reasoning_strategy_loader.config")
-    def test_get_strategy_name(self, mock_config, mock_load_yaml):
-        """Test retrieving strategy name."""
+                },
+                "get_active_strategy",
+                lambda result: result["name"] == "Chain-of-Thought"
+                and result["enabled"] is True,
+            ),
+            (
+                "rag_enhanced_reasoning",
+                {"name": "RAG-Enhanced Reasoning"},
+                "get_strategy_name",
+                lambda result: result == "RAG-Enhanced Reasoning",
+            ),
+            (
+                "test_strategy",
+                {"description": "This is a test strategy"},
+                "get_strategy_description",
+                lambda result: result == "This is a test strategy",
+            ),
+        ],
+    )
+    def test_get_strategy_info(
+        self, mock_yaml_and_config, strategy_key, config_data, method, expected_result
+    ):  # pylint: disable=redefined-outer-name
+        """Parametrized test for retrieving strategy information."""
+        mock_config, mock_load_yaml = mock_yaml_and_config
         mock_config.REASONING_STRATEGIES_FPATH = "/path/to/strategies.yaml"
-        mock_config.REASONING_STRATEGY = "rag_enhanced_reasoning"
+        mock_config.REASONING_STRATEGY = strategy_key
 
         mock_load_yaml.return_value = {
-            "reasoning_strategies": {
-                "rag_enhanced_reasoning": {"name": "RAG-Enhanced Reasoning"}
-            }
+            "reasoning_strategies": {strategy_key: config_data}
         }
 
         loader = ReasoningStrategyLoader()
-        name = loader.get_strategy_name()
+        result = getattr(loader, method)()
 
-        assert name == "RAG-Enhanced Reasoning"
+        assert expected_result(result)
 
-    @patch("src.reasoning_strategy_loader.load_yaml")
-    @patch("src.reasoning_strategy_loader.config")
-    def test_get_strategy_description(self, mock_config, mock_load_yaml):
-        """Test retrieving strategy description."""
-        mock_config.REASONING_STRATEGIES_FPATH = "/path/to/strategies.yaml"
-        mock_config.REASONING_STRATEGY = "test_strategy"
-
-        mock_load_yaml.return_value = {
-            "reasoning_strategies": {
-                "test_strategy": {"description": "This is a test strategy"}
-            }
-        }
-
-        loader = ReasoningStrategyLoader()
-        description = loader.get_strategy_description()
-
-        assert description == "This is a test strategy"
-
-    @patch("src.reasoning_strategy_loader.load_yaml")
-    @patch("src.reasoning_strategy_loader.config")
-    def test_get_strategy_instructions(self, mock_config, mock_load_yaml):
+    def test_get_strategy_instructions(
+        self, mock_yaml_and_config
+    ):  # pylint: disable=redefined-outer-name
         """Test retrieving strategy instructions."""
+        mock_config, mock_load_yaml = mock_yaml_and_config
         mock_config.REASONING_STRATEGIES_FPATH = "/path/to/strategies.yaml"
         mock_config.REASONING_STRATEGY = "test_strategy"
 
@@ -140,10 +143,9 @@ class TestReasoningStrategyRetrieval:
         assert retrieved_instructions == instructions
         assert len(retrieved_instructions) == 3
 
-    @patch("src.reasoning_strategy_loader.load_yaml")
-    @patch("src.reasoning_strategy_loader.config")
-    def test_get_few_shot_examples(self, mock_config, mock_load_yaml):
+    def test_get_few_shot_examples(self, mock_yaml_and_config):
         """Test retrieving few-shot examples if available."""
+        mock_config, mock_load_yaml = mock_yaml_and_config
         mock_config.REASONING_STRATEGIES_FPATH = "/path/to/strategies.yaml"
         mock_config.REASONING_STRATEGY = "test_strategy"
 
@@ -162,42 +164,35 @@ class TestReasoningStrategyRetrieval:
         assert len(retrieved_examples) == 2
         assert retrieved_examples[0]["question"] == "Example Q1"
 
+    # ========================================================================
+    # VALIDATION TESTS
+    # ========================================================================
 
-class TestReasoningStrategyValidation:
-    """Test strategy validation and checks."""
-
-    @patch("src.reasoning_strategy_loader.load_yaml")
-    @patch("src.reasoning_strategy_loader.config")
-    def test_is_strategy_enabled(self, mock_config, mock_load_yaml):
-        """Test checking if strategy is enabled."""
+    @pytest.mark.parametrize(
+        "strategy_name,enabled,expected",
+        [
+            ("enabled_strategy", True, True),
+            ("disabled_strategy", False, False),
+        ],
+    )
+    def test_is_strategy_enabled(
+        self, mock_yaml_and_config, strategy_name, enabled, expected
+    ):
+        """Parametrized test for checking if strategy is enabled."""
+        mock_config, mock_load_yaml = mock_yaml_and_config
         mock_config.REASONING_STRATEGIES_FPATH = "/path/to/strategies.yaml"
-        mock_config.REASONING_STRATEGY = "enabled_strategy"
+        mock_config.REASONING_STRATEGY = strategy_name
 
         mock_load_yaml.return_value = {
-            "reasoning_strategies": {"enabled_strategy": {"enabled": True}}
+            "reasoning_strategies": {strategy_name: {"enabled": enabled}}
         }
 
         loader = ReasoningStrategyLoader()
-        assert loader.is_strategy_enabled() is True
+        assert loader.is_strategy_enabled() is expected
 
-    @patch("src.reasoning_strategy_loader.load_yaml")
-    @patch("src.reasoning_strategy_loader.config")
-    def test_is_strategy_disabled(self, mock_config, mock_load_yaml):
-        """Test checking if strategy is disabled."""
-        mock_config.REASONING_STRATEGIES_FPATH = "/path/to/strategies.yaml"
-        mock_config.REASONING_STRATEGY = "disabled_strategy"
-
-        mock_load_yaml.return_value = {
-            "reasoning_strategies": {"disabled_strategy": {"enabled": False}}
-        }
-
-        loader = ReasoningStrategyLoader()
-        assert loader.is_strategy_enabled() is False
-
-    @patch("src.reasoning_strategy_loader.load_yaml")
-    @patch("src.reasoning_strategy_loader.config")
-    def test_invalid_strategy_raises_error(self, mock_config, mock_load_yaml):
+    def test_invalid_strategy_raises_error(self, mock_yaml_and_config):
         """Test that requesting invalid strategy raises error."""
+        mock_config, mock_load_yaml = mock_yaml_and_config
         mock_config.REASONING_STRATEGIES_FPATH = "/path/to/strategies.yaml"
         mock_config.REASONING_STRATEGY = "nonexistent_strategy"
 
@@ -210,15 +205,13 @@ class TestReasoningStrategyValidation:
         with pytest.raises(ValueError):
             loader.get_active_strategy()
 
+    # ========================================================================
+    # ENABLED STRATEGIES TESTS
+    # ========================================================================
 
-# pylint: disable=too-few-public-methods
-class TestReasoningStrategyAllEnabled:
-    """Test querying all enabled strategies."""
-
-    @patch("src.reasoning_strategy_loader.load_yaml")
-    @patch("src.reasoning_strategy_loader.config")
-    def test_get_all_enabled_strategies(self, mock_config, mock_load_yaml):
+    def test_get_all_enabled_strategies(self, mock_yaml_and_config):
         """Test retrieving all enabled strategies."""
+        mock_config, mock_load_yaml = mock_yaml_and_config
         mock_config.REASONING_STRATEGIES_FPATH = "/path/to/strategies.yaml"
         mock_config.REASONING_STRATEGY = "rag_enhanced_reasoning"
 
@@ -239,15 +232,13 @@ class TestReasoningStrategyAllEnabled:
         assert "chain_of_thought" in enabled
         assert "self_consistency" not in enabled
 
+    # ========================================================================
+    # PROMPT BUILDING TESTS
+    # ========================================================================
 
-# pylint: disable=too-few-public-methods
-class TestReasoningStrategyPromptBuilding:
-    """Test building complete strategy prompts."""
-
-    @patch("src.reasoning_strategy_loader.load_yaml")
-    @patch("src.reasoning_strategy_loader.config")
-    def test_build_strategy_prompt(self, mock_config, mock_load_yaml):
+    def test_build_strategy_prompt(self, mock_yaml_and_config):
         """Test building complete prompt for strategy."""
+        mock_config, mock_load_yaml = mock_yaml_and_config
         mock_config.REASONING_STRATEGIES_FPATH = "/path/to/strategies.yaml"
         mock_config.REASONING_STRATEGY = "test_strategy"
 
@@ -269,48 +260,53 @@ class TestReasoningStrategyPromptBuilding:
         assert "Step 1" in prompt
         assert "Step 2" in prompt
 
+    # ========================================================================
+    # EDGE CASES AND ERROR HANDLING TESTS
+    # ========================================================================
 
-class TestReasoningStrategyEdgeCases:
-    """Test edge cases in reasoning strategy handling."""
-
-    @patch("src.reasoning_strategy_loader.load_yaml")
-    @patch("src.reasoning_strategy_loader.config")
-    def test_empty_instructions(self, mock_config, mock_load_yaml):
-        """Test strategy with no instructions."""
+    @pytest.mark.parametrize(
+        "strategy_config,expected_name,expected_description,expected_instructions",
+        [
+            (
+                {"prompt_instructions": []},
+                "no_instructions",
+                "",
+                [],
+            ),
+            (
+                {"enabled": True},
+                "minimal_strategy",
+                "",
+                [],
+            ),
+        ],
+    )
+    def test_missing_or_empty_fields(
+        self,
+        mock_yaml_and_config,
+        strategy_config,
+        expected_name,
+        expected_description,
+        expected_instructions,
+    ):
+        """Parametrized test for strategies with missing or empty optional fields."""
+        mock_config, mock_load_yaml = mock_yaml_and_config
         mock_config.REASONING_STRATEGIES_FPATH = "/path/to/strategies.yaml"
-        mock_config.REASONING_STRATEGY = "no_instructions"
+        mock_config.REASONING_STRATEGY = expected_name
 
         mock_load_yaml.return_value = {
-            "reasoning_strategies": {"no_instructions": {"prompt_instructions": []}}
+            "reasoning_strategies": {expected_name: strategy_config}
         }
 
         loader = ReasoningStrategyLoader()
-        instructions = loader.get_strategy_instructions()
 
-        assert instructions == []
+        assert loader.get_strategy_name() == expected_name
+        assert loader.get_strategy_description() == expected_description
+        assert loader.get_strategy_instructions() == expected_instructions
 
-    @patch("src.reasoning_strategy_loader.load_yaml")
-    @patch("src.reasoning_strategy_loader.config")
-    def test_missing_optional_fields(self, mock_config, mock_load_yaml):
-        """Test strategy with missing optional fields."""
-        mock_config.REASONING_STRATEGIES_FPATH = "/path/to/strategies.yaml"
-        mock_config.REASONING_STRATEGY = "minimal_strategy"
-
-        mock_load_yaml.return_value = {
-            "reasoning_strategies": {"minimal_strategy": {"enabled": True}}
-        }
-
-        loader = ReasoningStrategyLoader()
-
-        # Should handle gracefully
-        assert loader.get_strategy_name() == "minimal_strategy"
-        assert loader.get_strategy_description() == ""
-        assert loader.get_strategy_instructions() == []
-
-    @patch("src.reasoning_strategy_loader.load_yaml")
-    @patch("src.reasoning_strategy_loader.config")
-    def test_very_long_instructions(self, mock_config, mock_load_yaml):
+    def test_very_long_instructions(self, mock_yaml_and_config):
         """Test strategy with very long instruction list."""
+        mock_config, mock_load_yaml = mock_yaml_and_config
         mock_config.REASONING_STRATEGIES_FPATH = "/path/to/strategies.yaml"
         mock_config.REASONING_STRATEGY = "long_instructions"
 
@@ -327,28 +323,21 @@ class TestReasoningStrategyEdgeCases:
 
         assert len(instructions) == 100
 
+    @pytest.mark.parametrize(
+        "exception_type,exception_msg",
+        [
+            (FileNotFoundError, "Config not found"),
+            (Exception, "Invalid YAML format"),
+        ],
+    )
+    def test_initialization_errors(self, exception_type, exception_msg):
+        """Parametrized test for initialization errors."""
+        with patch("src.reasoning_strategy_loader.load_yaml") as mock_load_yaml, patch(
+            "src.reasoning_strategy_loader.config"
+        ) as mock_config:
+            mock_config.REASONING_STRATEGIES_FPATH = "/path/to/strategies.yaml"
+            mock_config.REASONING_STRATEGY = "test_strategy"
+            mock_load_yaml.side_effect = exception_type(exception_msg)
 
-class TestReasoningStrategyExceptionHandling:
-    """Test exception handling in reasoning strategy."""
-
-    @patch("src.reasoning_strategy_loader.load_yaml")
-    @patch("src.reasoning_strategy_loader.config")
-    def test_config_load_error(self, mock_config, mock_load_yaml):
-        """Test handling of configuration load errors."""
-        mock_config.REASONING_STRATEGIES_FPATH = "/path/to/strategies.yaml"
-        mock_config.REASONING_STRATEGY = "test_strategy"
-        mock_load_yaml.side_effect = FileNotFoundError("Config not found")
-
-        with pytest.raises(FileNotFoundError):
-            ReasoningStrategyLoader()
-
-    @patch("src.reasoning_strategy_loader.load_yaml")
-    @patch("src.reasoning_strategy_loader.config")
-    def test_malformed_yaml(self, mock_config, mock_load_yaml):
-        """Test handling of malformed YAML."""
-        mock_config.REASONING_STRATEGIES_FPATH = "/path/to/strategies.yaml"
-        mock_config.REASONING_STRATEGY = "test_strategy"
-        mock_load_yaml.side_effect = Exception("Invalid YAML format")
-
-        with pytest.raises(Exception):
-            ReasoningStrategyLoader()
+            with pytest.raises(exception_type):
+                ReasoningStrategyLoader()

@@ -1,8 +1,10 @@
 """
 Unit tests for RAGAssistant class.
-Tests initialization, document handling, and invocation.
+Tests initialization, document handling, invocation, and error handling.
 """
 
+import re
+import time as time_module
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -41,9 +43,13 @@ def mock_components():
         }
 
 
-# pylint: disable=redefined-outer-name
-class TestRAGAssistantInitialization:
-    """Test RAGAssistant initialization and setup."""
+# pylint: disable=redefined-outer-name,protected-access, too-many-public-methods
+class TestRAGAssistant:
+    """Unified test class for RAGAssistant covering initialization, documents, invocation, and error handling."""
+
+    # ========================================================================
+    # INITIALIZATION TESTS
+    # ========================================================================
 
     def test_initialization_success(
         self, mock_components
@@ -57,29 +63,42 @@ class TestRAGAssistantInitialization:
         assert assistant.chain is not None
         assert assistant.prompt_template is not None
 
-    def test_initialize_llm_success(self, mock_components):
-        """Test successful LLM initialization."""
+    @pytest.mark.parametrize(
+        "component,mock_attr,expected_none",
+        [
+            ("llm", "llm", True),
+            ("vectordb", "vectordb", False),
+            ("memory", "memory", False),
+            ("reasoning", "reasoning", False),
+        ],
+    )
+    def test_component_initialization_failure(
+        self, mock_components, component, mock_attr, expected_none
+    ):
+        """Parametrized test for component initialization failures."""
+        mock_components[mock_attr].side_effect = Exception(
+            f"{component} initialization failed"
+        )
+
         assistant = RAGAssistant()
 
-        mock_components["llm"].assert_called_once()
-        assert assistant.llm is not None
-
-    def test_initialize_llm_failure(self, mock_components):
-        """Test graceful handling of LLM initialization failure."""
-        mock_components["llm"].side_effect = Exception("LLM initialization failed")
-
-        assistant = RAGAssistant()
-
-        assert assistant.llm is None
-        assert assistant.chain is None
+        if expected_none:
+            assert assistant.llm is None
+            assert assistant.chain is None
+        else:
+            assert (
+                getattr(
+                    assistant,
+                    component.replace("vectordb", "vector_db")
+                    .replace("memory", "memory_manager")
+                    .replace("reasoning", "reasoning_strategy"),
+                )
+                is None
+            )
 
     @pytest.mark.parametrize(
         "model_name",
-        [
-            "gpt-4o-mini",
-            "llama-3.1-8b-instant",
-            "gemini-pro",
-        ],
+        ["gpt-4o-mini", "llama-3.1-8b-instant", "gemini-pro"],
     )
     def test_llm_initialization_with_models(self, mock_components, model_name):
         """Parametrized test for LLM initialization with different models."""
@@ -90,68 +109,18 @@ class TestRAGAssistantInitialization:
         mock_components["llm"].assert_called_once()
         assert assistant.llm.model_name == model_name
 
-    def test_initialize_vector_db_success(self, mock_components):
-        """Test successful vector database initialization."""
-        assistant = RAGAssistant()
-
-        mock_components["vectordb"].assert_called_once()
-        assert assistant.vector_db is not None
-
-    def test_initialize_vector_db_failure(self, mock_components):
-        """Test graceful handling of VectorDB initialization failure."""
-        mock_components["vectordb"].side_effect = Exception(
-            "VectorDB initialization failed"
-        )
-
-        assistant = RAGAssistant()
-
-        assert assistant.vector_db is None
-
-    def test_initialize_memory_success(self, mock_components):
-        """Test successful memory manager initialization."""
-        assistant = RAGAssistant()
-
-        mock_components["memory"].assert_called_once()
-        assert assistant.memory_manager is not None
-
-    def test_initialize_memory_failure(self, mock_components):
-        """Test graceful handling of memory manager initialization failure."""
-        mock_components["memory"].side_effect = Exception(
-            "Memory initialization failed"
-        )
-
-        assistant = RAGAssistant()
-
-        assert assistant.memory_manager is None
-
-    def test_initialize_reasoning_strategy_success(self, mock_components):
-        """Test successful reasoning strategy initialization."""
-        assistant = RAGAssistant()
-
-        mock_components["reasoning"].assert_called_once()
-        assert assistant.reasoning_strategy is not None
-
-    def test_initialize_reasoning_strategy_failure(self, mock_components):
-        """Test graceful handling of reasoning strategy initialization failure."""
-        mock_components["reasoning"].side_effect = Exception(
-            "Reasoning strategy initialization failed"
-        )
-
-        assistant = RAGAssistant()
-
-        assert assistant.reasoning_strategy is None
-
-    def test_chain_building(self, mock_components):  # pylint: disable=unused-argument
+    def test_chain_and_template_building(
+        self, mock_components
+    ):  # pylint: disable=unused-argument
         """Test that prompt template and chain are built correctly."""
         assistant = RAGAssistant()
 
         assert assistant.prompt_template is not None
         assert assistant.chain is not None
 
-
-# pylint: disable=redefined-outer-name
-class TestRAGAssistantAddDocuments:
-    """Test document addition functionality."""
+    # ========================================================================
+    # DOCUMENT HANDLING TESTS
+    # ========================================================================
 
     @pytest.mark.parametrize(
         "documents,_doc_type",
@@ -167,12 +136,7 @@ class TestRAGAssistantAddDocuments:
             ([], "empty_list"),
         ],
     )
-    def test_add_documents(
-        self,
-        mock_components,
-        documents,
-        _doc_type,
-    ):
+    def test_add_documents(self, mock_components, documents, _doc_type):
         """Parametrized test for adding documents of various types."""
         assistant = RAGAssistant()
         assistant.add_documents(documents)
@@ -181,54 +145,24 @@ class TestRAGAssistantAddDocuments:
             documents
         )
 
-    def test_add_documents_string_list(self, mock_components):
-        """Test adding documents as list of strings."""
-        documents = ["Document 1", "Document 2", "Document 3"]
-        assistant = RAGAssistant()
-        assistant.add_documents(documents)
-
-        mock_components["vectordb_instance"].add_documents.assert_called_once_with(
-            documents
-        )
-
-    def test_add_documents_dict_list(self, mock_components):
-        """Test adding documents as list of dicts."""
-        documents = [
-            {"title": "Doc1", "content": "Content1"},
-            {"title": "Doc2", "content": "Content2"},
-        ]
-        assistant = RAGAssistant()
-        assistant.add_documents(documents)
-
-        mock_components["vectordb_instance"].add_documents.assert_called_once_with(
-            documents
-        )
-
-
-# pylint: disable=redefined-outer-name
-class TestRAGAssistantInvoke:
-    """Test RAGAssistant invoke method."""
+    # ========================================================================
+    # INVOKE METHOD TESTS
+    # ========================================================================
 
     @pytest.mark.parametrize(
-        "search_result,has_documents",
+        "search_result",
         [
             (
                 {
                     "documents": [["Document 1 content", "Document 2 content"]],
                     "distances": [[0.1, 0.2]],
-                },
-                True,
+                }
             ),
-            ({"documents": [[]], "distances": [[]]}, False),
-            ({"documents": [], "distances": []}, False),
+            ({"documents": [[]], "distances": [[]]}),
+            ({"documents": [], "distances": []}),
         ],
     )
-    def test_invoke_various_contexts(
-        self,
-        mock_components,
-        search_result,
-        has_documents,
-    ):
+    def test_invoke_various_contexts(self, mock_components, search_result):
         """Parametrized test for invoke with various search results."""
         mock_components["vectordb_instance"].search.return_value = search_result
 
@@ -238,18 +172,14 @@ class TestRAGAssistantInvoke:
 
         response = assistant.invoke("Test query")
 
-        if has_documents:
-            assert response == "Test response"
-        else:
-            # Empty documents should trigger LLM with empty context
-            # System prompts will guide the response to "not known to me"
-            assert response == "Test response"
-            assistant.chain.invoke.assert_called_once()
-
+        assert response == "Test response"
         mock_components["vectordb_instance"].search.assert_called_once()
 
     def test_invoke_context_retrieval(self, mock_components):
         """Test that invoke retrieves context from vector database."""
+        mock_components["memory_instance"].get_memory_variables.return_value = {
+            "chat_history": ""
+        }
         mock_components["vectordb_instance"].search.return_value = {
             "documents": [["Context about AI"]],
             "distances": [[0.1]],
@@ -261,16 +191,18 @@ class TestRAGAssistantInvoke:
 
         assistant.invoke("Test query")
 
-        mock_components["vectordb_instance"].search.assert_called_once_with(
-            query="Test query", n_results=5, maximum_distance=0.7
-        )
+        mock_components["vectordb_instance"].search.assert_called_once()
+        call_kwargs = mock_components["vectordb_instance"].search.call_args.kwargs
+        assert call_kwargs["n_results"] == 3
+        assert call_kwargs["maximum_distance"] == 0.6
+        assert "Test query" in call_kwargs["query"]
 
-    @pytest.mark.parametrize(
-        "n_results",
-        [5, 10, 20],
-    )
+    @pytest.mark.parametrize("n_results", [5, 10, 20])
     def test_invoke_custom_n_results(self, mock_components, n_results):
         """Parametrized test for invoke with custom n_results."""
+        mock_components["memory_instance"].get_memory_variables.return_value = {
+            "chat_history": ""
+        }
         mock_components["vectordb_instance"].search.return_value = {
             "documents": [["Content"]],
             "distances": [[0.1]],
@@ -280,11 +212,10 @@ class TestRAGAssistantInvoke:
         assistant.chain = MagicMock()
         assistant.chain.invoke.return_value = "Response"
 
-        # Use query with action verb to avoid auto-prefixing
         assistant.invoke("What about this?", n_results=n_results)
 
         mock_components["vectordb_instance"].search.assert_called_once_with(
-            query="What about this?", n_results=n_results, maximum_distance=0.7
+            query="What about this?", n_results=n_results, maximum_distance=0.6
         )
 
     def test_invoke_saves_to_memory(self, mock_components):
@@ -298,7 +229,6 @@ class TestRAGAssistantInvoke:
         assistant.chain = MagicMock()
         assistant.chain.invoke.return_value = "Assistant response"
 
-        # Use query with action verb to avoid auto-prefixing
         query = "What is this?"
         assistant.invoke(query)
 
@@ -308,10 +238,9 @@ class TestRAGAssistantInvoke:
 
     def test_invoke_low_similarity_rejects_answer(self, mock_components):
         """Test invoke handles low-similarity answers by passing empty context to LLM."""
-        # Simulate low similarity (distance > threshold)
         mock_components["vectordb_instance"].search.return_value = {
             "documents": [["Some content"]],
-            "distances": [[0.9]],  # High distance = low similarity
+            "distances": [[0.9]],
         }
 
         assistant = RAGAssistant()
@@ -320,38 +249,134 @@ class TestRAGAssistantInvoke:
             "I'm sorry, that information is not known to me."
         )
 
-        # Use query with action verb so it's a REGULAR question (not VAGUE/META)
         response = assistant.invoke("What is this?")
 
-        # Should call chain with empty context, letting system prompts handle rejection
         assert response == "I'm sorry, that information is not known to me."
         assistant.chain.invoke.assert_called_once()
 
+    # ========================================================================
+    # QUERY AUGMENTATION TESTS
+    # ========================================================================
 
-# pylint: disable=redefined-outer-name
-class TestRAGAssistantExceptionHandling:
-    """Test exception handling in RAGAssistant."""
+    @pytest.mark.parametrize(
+        "chat_history,expected_augment",
+        [
+            ("", False),
+            ("No previous conversation context.", False),
+            (None, False),
+            ("Previous question: What is post-quantum cryptography?", True),
+        ],
+    )
+    def test_augment_query_conditions(
+        self, mock_components, chat_history, expected_augment
+    ):
+        """Parametrized test for query augmentation under various conditions."""
+        mock_components["memory_instance"].get_memory_variables.return_value = {
+            "chat_history": chat_history
+        }
 
-    def test_vectordb_connection_error(self, mock_components):
-        """Test handling of VectorDB connection errors."""
-        mock_components["vectordb"].side_effect = Exception(
-            "Failed to connect to ChromaDB"
+        assistant = RAGAssistant()
+        query = "Who are famous for it in India?"
+        result = assistant._augment_query_with_context(query)
+
+        if expected_augment:
+            assert chat_history in result
+            assert "Current question:" in result
+        else:
+            assert result == query
+
+    def test_augment_query_no_memory_manager(self):
+        """Test that query is returned unchanged when no memory manager exists."""
+        assistant = RAGAssistant()
+        assistant.memory_manager = None
+
+        original_query = "Who are famous for it in India?"
+        result = assistant._augment_query_with_context(original_query)
+
+        assert result == original_query
+
+    def test_augment_query_exception_handling(self, mock_components):
+        """Test that exceptions during context retrieval are handled gracefully."""
+        mock_components["memory_instance"].get_memory_variables.side_effect = Exception(
+            "Memory retrieval error"
         )
 
         assistant = RAGAssistant()
+        original_query = "What is this topic?"
+        result = assistant._augment_query_with_context(original_query)
 
-        assert assistant.vector_db is None
+        assert result == original_query
 
-    def test_reasoning_strategy_load_error(self, mock_components):
-        """Test handling of ReasoningStrategyLoader errors."""
-        mock_components["reasoning"].side_effect = Exception(
-            "Failed to load reasoning strategy"
-        )
+    @pytest.mark.parametrize(
+        "chat_history,query",
+        [
+            ("Previous: What is AI?", "Can you explain more?"),
+            (
+                "Q: What is Python?\nA: Python is a programming language.",
+                "Is it good for beginners?",
+            ),
+            (
+                "Discussion about machine learning models",
+                "What's the most popular one?",
+            ),
+        ],
+    )
+    def test_augment_query_with_various_contexts(
+        self, mock_components, chat_history, query
+    ):
+        """Parametrized test for augmenting queries with various chat histories."""
+        mock_components["memory_instance"].get_memory_variables.return_value = {
+            "chat_history": chat_history
+        }
 
-        # Should handle gracefully (log error but continue)
         assistant = RAGAssistant()
-        assert assistant.reasoning_strategy is None
-        assert assistant.chain is not None
+        result = assistant._augment_query_with_context(query)
+
+        assert chat_history in result
+        assert query in result
+        assert "Current question:" in result
+
+    def test_augment_query_integration_with_invoke(self, mock_components):
+        """Test that augmented query is used in the invoke method."""
+        chat_history = "Previous: What is quantum computing?"
+        mock_components["memory_instance"].get_memory_variables.return_value = {
+            "chat_history": chat_history
+        }
+        mock_components["vectordb_instance"].search.return_value = {
+            "documents": [["Quantum computing content"]],
+            "distances": [[0.1]],
+        }
+
+        assistant = RAGAssistant()
+        assistant.chain = MagicMock()
+        assistant.chain.invoke.return_value = "Response"
+
+        assistant.invoke("Tell me more about it")
+
+        search_call_args = mock_components["vectordb_instance"].search.call_args
+        search_query = search_call_args.kwargs["query"]
+
+        assert chat_history in search_query
+        assert "Tell me more about it" in search_query
+
+    def test_augment_query_logs_debug_message(self, mock_components):
+        """Test that augmentation logs a debug message."""
+        chat_history = "Previous conversation"
+        mock_components["memory_instance"].get_memory_variables.return_value = {
+            "chat_history": chat_history
+        }
+
+        assistant = RAGAssistant()
+
+        with patch("src.rag_assistant.logger") as mock_logger:
+            assistant._augment_query_with_context("Current query")
+            mock_logger.debug.assert_called_with(
+                "Query augmented with chat history context"
+            )
+
+    # ========================================================================
+    # ERROR HANDLING TESTS
+    # ========================================================================
 
     def test_invoke_search_error_with_graceful_fallback(self, mock_components):
         """Test invoke handles search errors gracefully."""
@@ -364,7 +389,6 @@ class TestRAGAssistantExceptionHandling:
 
         response = assistant.invoke("Test query")
 
-        # Should return generic error message, not reveal technical details
         assert "unable to search" in response.lower()
         assert "configuration" in response.lower()
         assert "768" not in response
@@ -383,6 +407,85 @@ class TestRAGAssistantExceptionHandling:
 
         response = assistant.invoke("Test query")
 
-        # Should return generic error message
         assert "encountered an error" in response.lower()
         assert "timeout" not in response.lower()
+
+    # ========================================================================
+    # RESPONSE TIMING TESTS
+    # ========================================================================
+
+    def test_invoke_logs_response_time(self, mock_components):
+        """Test that invoke measures and logs response time at debug level."""
+        mock_components["vectordb_instance"].search.return_value = {
+            "documents": [["Content"]],
+            "distances": [[0.1]],
+        }
+
+        assistant = RAGAssistant()
+        assistant.chain = MagicMock()
+        assistant.chain.invoke.return_value = "Test response"
+
+        with patch("src.rag_assistant.logger") as mock_logger:
+            assistant.invoke("Test query")
+
+            debug_calls = [call[0][0] for call in mock_logger.debug.call_args_list]
+            response_time_logged = any(
+                "Response time:" in call and "ms" in call for call in debug_calls
+            )
+            assert response_time_logged, "Response time not logged at debug level"
+
+    def test_invoke_response_time_format(self, mock_components):
+        """Test that response time is logged in correct format (milliseconds)."""
+        mock_components["vectordb_instance"].search.return_value = {
+            "documents": [["Content"]],
+            "distances": [[0.1]],
+        }
+
+        assistant = RAGAssistant()
+        assistant.chain = MagicMock()
+        assistant.chain.invoke.return_value = "Response"
+
+        with patch("src.rag_assistant.logger") as mock_logger:
+            assistant.invoke("Query")
+
+            debug_calls = [call[0][0] for call in mock_logger.debug.call_args_list]
+            time_log = next(
+                (call for call in debug_calls if "Response time:" in call), None
+            )
+            assert time_log is not None, "Response time log not found"
+            assert "ms" in time_log, "Response time should be in milliseconds"
+
+    def test_invoke_response_time_reasonable(self, mock_components):
+        """Test that response time is reasonable (between 0 and 60 seconds)."""
+
+        mock_components["vectordb_instance"].search.return_value = {
+            "documents": [["Content"]],
+            "distances": [[0.1]],
+        }
+
+        assistant = RAGAssistant()
+        assistant.chain = MagicMock()
+        assistant.chain.invoke.return_value = "Response"
+
+        with patch("src.rag_assistant.logger") as mock_logger:
+            start = time_module.time()
+            assistant.invoke("Query")
+            elapsed = (time_module.time() - start) * 1000
+
+            debug_calls = [call[0][0] for call in mock_logger.debug.call_args_list]
+            time_log = next(
+                (call for call in debug_calls if "Response time:" in call), None
+            )
+            assert time_log is not None
+
+            match = re.search(r"Response time: ([\d.]+)ms", time_log)
+            assert match, f"Could not parse response time from: {time_log}"
+
+            logged_time = float(match.group(1))
+
+            assert (
+                0 < logged_time < 60000
+            ), f"Response time {logged_time}ms is unreasonable"
+            assert (
+                logged_time <= elapsed + 100
+            ), "Logged time shouldn't exceed actual time by much"

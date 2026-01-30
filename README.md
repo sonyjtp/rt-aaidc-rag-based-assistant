@@ -5,7 +5,7 @@
 [![Python Version](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-CC%20BY--NC--SA%204.0-blue.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)]()
-[![Code Coverage](https://img.shields.io/badge/coverage-91.64%25-brightgreen.svg)]()
+[![Code Coverage](https://img.shields.io/badge/coverage-91.04%25-brightgreen.svg)]()
 [![Pylint](https://github.com/sonyjtp/rag-based-assistant/actions/workflows/pylint.yml/badge.svg)](https://github.com/sonyjtp/rag-based-assistant/actions/workflows/pylint.yml)
 
 [Quick Start](#-quick-start) • [Features](#-features) • [Installation](#-installation)
@@ -25,7 +25,9 @@
 - [Project Structure](#-project-structure)
 - [Customization Guide](#-customization-guide)
 - [Troubleshooting](#-troubleshooting)
+- [Documentation](#-documentation)
 - [License](#-license)
+
 
 ---
 
@@ -78,11 +80,9 @@ This project implements a **Retrieval-Augmented Generation (RAG)** chatbot that:
 
 - ✅ **RAG-Enhanced Reasoning** (rag_enhanced_reasoning) — default: Retrieve relevant documents first, then apply reasoning grounded in those documents; `enabled: true`.
 - ✅ **Chain-of-Thought** (chain_of_thought): Step-by-step internal reasoning before the final answer; `enabled: true`.
+- ✅ **ReAct** (react): Interleave reasoning and actions (e.g., document retrieval) dynamically; `enabled: false`.
 - ✅ **Few-Shot Prompting** (few_shot_prompting): Include examples in the prompt to guide format and style; `enabled: true`.
-- ✅ **Structured Prompting** (structured_prompting): Use templates/format specifications for consistent, parseable outputs; `enabled: true`.
 - ✅ **Metacognitive Prompting** (metacognitive_prompting): Reflect on confidence, limitations, and uncertainty; `enabled: true`.
-
-
 
 ### Safety & Quality
 - ✅ **Hallucination Prevention**: Strict prompt constraints
@@ -161,6 +161,8 @@ python src/app.py
 ```bash
 streamlit run src/streamlit_app.py
 ```
+
+> 📖 For a detailed walkthrough of the web interface, see [UI_GUIDE.md](UI_GUIDE.md).
 
 ---
 
@@ -381,8 +383,6 @@ rag-based-assistant/
 ├── .pylintrc                     # Pylint configuration
 ├── .pre-commit-config.yaml       # Pre-commit hooks
 ├── .env_example                  # Example environment variables
-├── Dockerfile                    # Docker container definition
-├── docker-compose.yml            # Docker Compose setup
 │
 ├── update_coverage.py            # Coverage badge script
 ├── UI_GUIDE.md                   # Streamlit UI guide
@@ -589,6 +589,24 @@ All contributions must include:
 - Use type hints
 - Write docstrings
 - Comment complex logic
+
+---
+
+## 📚 Documentation
+
+This project includes comprehensive documentation for different aspects:
+
+### User Documentation
+- **[UI_GUIDE.md](UI_GUIDE.md)** — Complete guide to the web interface (Streamlit)
+  - Features, components, and user workflows
+  - Styling and customization
+  - Troubleshooting and performance tips
+
+### Configuration Documentation
+- See [Configuration](#-configuration) section for details on:
+  - `config/reasoning_strategies.yaml` — Reasoning approach configurations
+  - `config/memory_strategies.yaml` — Memory strategy definitions
+  - `config/prompt-config.yaml` — System prompts and safety constraints
 
 ---
 

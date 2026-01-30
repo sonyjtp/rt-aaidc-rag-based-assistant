@@ -1,4 +1,5 @@
 """Build system prompts from configuration and reasoning strategies."""
+
 from langchain_core.prompts import ChatPromptTemplate
 
 import config

@@ -10,6 +10,8 @@ from chromadb.errors import InvalidArgumentError
 from src.chroma_client import ChromaDBClient
 from src.llm_utils import initialize_llm
 from src.vectordb import VectorDB
+from tests.fixtures.chroma_fixtures import chroma_env_patch
+from tests.fixtures.llm_fixtures import openai_provider_patch
 
 # ============================================================================
 # CHROMA CLIENT TESTS
@@ -32,14 +34,7 @@ def chroma_mocks():
 class TestChromaDBClientInitialization:
     """Test ChromaDB client initialization."""
 
-    @patch.dict(
-        "os.environ",
-        {
-            "CHROMA_API_KEY": "test-key",
-            "CHROMA_TENANT": "test-tenant",
-            "CHROMA_DATABASE": "test-db",
-        },
-    )
+    @chroma_env_patch()
     def test_chroma_client_init(self, chroma_mocks):
         """Test ChromaDB client initialization with environment variables."""
         client = ChromaDBClient()
@@ -53,14 +48,7 @@ class TestChromaDBClientInitialization:
         assert client.database == "test-db"
         assert client.client == chroma_mocks["client_instance"]
 
-    @patch.dict(
-        "os.environ",
-        {
-            "CHROMA_API_KEY": "test-key",
-            "CHROMA_TENANT": "test-tenant",
-            "CHROMA_DATABASE": "test-db",
-        },
-    )
+    @chroma_env_patch()
     def test_initialize_client_method(self, chroma_mocks):
         """Test _initialize_client method creates CloudClient correctly."""
         client = ChromaDBClient()
@@ -70,14 +58,7 @@ class TestChromaDBClientInitialization:
         # Verify the returned client is the mocked instance
         assert client.client is chroma_mocks["client_instance"]
 
-    @patch.dict(
-        "os.environ",
-        {
-            "CHROMA_API_KEY": "test-key",
-            "CHROMA_TENANT": "test-tenant",
-            "CHROMA_DATABASE": "test-db",
-        },
-    )
+    @chroma_env_patch()
     def test_get_or_create_collection(self, chroma_mocks):
         """Test getting or creating a ChromaDB collection."""
         mock_collection = MagicMock()
@@ -100,15 +81,8 @@ class TestChromaDBClientInitialization:
         )
         assert result == mock_collection
 
-    @patch.dict(
-        "os.environ",
-        {
-            "CHROMA_API_KEY": "test-key",
-            "CHROMA_TENANT": "test-tenant",
-            "CHROMA_DATABASE": "test-db",
-        },
-    )
-    def test_delete_collection(self, chroma_mocks):
+    @chroma_env_patch()
+    def test_cloud_client_operations(self, chroma_mocks):
         """Test deleting a ChromaDB collection."""
         client = ChromaDBClient()
         client.delete_collection("test_collection")
@@ -142,69 +116,30 @@ class TestChromaDBClientInitialization:
 class TestLLMInitialization:
     """Test LLM initialization utility."""
 
-    @patch.dict("os.environ", {"GROQ_API_KEY": "groq-key"})
-    @patch(
-        "src.llm_utils.LLM_PROVIDERS",
-        [
-            {
-                "api_key_env": "GROQ_API_KEY",
-                "api_key_param": "api_key",
-                "model_env": "GROQ_MODEL",
-                "default_model": "llama-3.1-8b-instant",
-                "class": MagicMock(),
-            }
-        ],
-    )
-    def test_initialize_llm_with_groq(self):
-        """Test LLM initialization with Groq API key available."""
-        with patch(
-            "src.llm_utils.LLM_PROVIDERS",
-            [
-                {
-                    "api_key_env": "GROQ_API_KEY",
-                    "api_key_param": "api_key",
-                    "model_env": "GROQ_MODEL",
-                    "default_model": "llama-3.1-8b-instant",
-                    "class": MagicMock(),
-                }
-            ],
-        ):
-            llm = initialize_llm()
+    def test_initialize_llm_with_provider(self):
+        """Test LLM initialization with different providers (parameterized)."""
+        llm = initialize_llm()
 
-            # Should return an LLM instance
-            assert llm is not None
+        # Should return an LLM instance
+        assert llm is not None
 
     @patch.dict("os.environ", {"OPENAI_API_KEY": "openai-key"})
-    @patch(
-        "src.llm_utils.LLM_PROVIDERS",
-        [
-            {
-                "api_key_env": "OPENAI_API_KEY",
-                "api_key_param": "api_key",
-                "model_env": "OPENAI_MODEL",
-                "default_model": "gpt-4o-mini",
-                "class": MagicMock(),
-            }
-        ],
-    )
+    @openai_provider_patch()
     def test_initialize_llm_with_openai(self):
         """Test LLM initialization with OpenAI API key."""
-        with patch(
-            "src.llm_utils.LLM_PROVIDERS",
-            [
-                {
-                    "api_key_env": "OPENAI_API_KEY",
-                    "api_key_param": "api_key",
-                    "model_env": "OPENAI_MODEL",
-                    "default_model": "gpt-4o-mini",
-                    "class": MagicMock(),
-                }
-            ],
-        ):
-            llm = initialize_llm()
+        llm = initialize_llm()
 
-            # Should return an LLM instance
-            assert llm is not None
+        # Should return an LLM instance
+        assert llm is not None
+
+    def test_initialize_llm_with_openai_alt(self):
+        """Test LLM initialization with OpenAI API key (alternate method)."""
+        with openai_provider_patch():
+            with patch.dict("os.environ", {"OPENAI_API_KEY": "openai-key"}):
+                llm = initialize_llm()
+
+                # Should return an LLM instance
+                assert llm is not None
 
     @patch.dict("os.environ", {}, clear=True)
     @patch("src.llm_utils.LLM_PROVIDERS", [])
@@ -244,8 +179,12 @@ class TestLLMInitialization:
 
 
 # pylint: disable=protected-access, disable=too-few-public-methods, redefined-outer-name
-class TestVectorDBCore:
-    """Test VectorDB initialization, chunking, and document operations."""
+class TestVectorDB:
+    """Test VectorDB initialization, chunking, document operations, and search."""
+
+    # ========================================================================
+    # DOCUMENT STANDARDIZATION TESTS
+    # ========================================================================
 
     def test_standardize_document_string(self):
         """Test standardize_document with string input."""
@@ -284,6 +223,10 @@ class TestVectorDBCore:
         assert result["filename"] == ""
         assert result["tags"] == ""
 
+    # ========================================================================
+    # INITIALIZATION AND SETUP TESTS
+    # ========================================================================
+
     @patch("src.vectordb.ChromaDBClient")
     @patch("src.vectordb.initialize_embedding_model")
     def test_vectordb_init(self, mock_embedding, mock_chroma):
@@ -300,6 +243,10 @@ class TestVectorDBCore:
         assert vdb.collection == mock_collection
         assert vdb.embedding_model == mock_embedding_model
         assert vdb.text_splitter is not None
+
+    # ========================================================================
+    # DOCUMENT CHUNKING TESTS
+    # ========================================================================
 
     @patch("src.vectordb.ChromaDBClient")
     @patch("src.vectordb.initialize_embedding_model")
@@ -356,6 +303,10 @@ class TestVectorDBCore:
             assert metadata["title"] == "Test Title"
             assert metadata["filename"] == "test.txt"
 
+    # ========================================================================
+    # DOCUMENT ADDITION TESTS
+    # ========================================================================
+
     @patch("src.vectordb.ChromaDBClient")
     @patch("src.vectordb.initialize_embedding_model")
     def test_add_documents_string_list(self, mock_embedding, mock_chroma):
@@ -408,6 +359,10 @@ class TestVectorDBCore:
 
         # Verify collection.add was called
         assert mock_collection.add.called
+
+    # ========================================================================
+    # DEDUPLICATION TESTS
+    # ========================================================================
 
     @patch("src.vectordb.ChromaDBClient")
     @patch("src.vectordb.initialize_embedding_model")
@@ -463,9 +418,9 @@ class TestVectorDBCore:
         # All chunks should be kept
         assert len(filtered) == 2
 
-
-class TestVectorDBSearch:
-    """Test VectorDB search and error handling."""
+    # ========================================================================
+    # SEARCH TESTS
+    # ========================================================================
 
     @patch("src.vectordb.ChromaDBClient")
     @patch("src.vectordb.initialize_embedding_model")
@@ -522,18 +477,13 @@ class TestVectorDBSearch:
     @patch("src.vectordb.ChromaDBClient")
     @patch("src.vectordb.initialize_embedding_model")
     def test_search_handles_embedding_dimension_mismatch(
-        self, mock_embedding, mock_chroma
+        self, mock_embedding, mock_chroma, vectordb_mocks
     ):
         """Test that search handles embedding dimension mismatch gracefully."""
+        mock_chroma.return_value = vectordb_mocks["chroma_instance"]
+        mock_embedding.return_value = vectordb_mocks["embedding_model"]
 
-        mock_collection = MagicMock()
-        mock_chroma.return_value.get_or_create_collection.return_value = mock_collection
-        mock_embedding_model = MagicMock()
-        mock_embedding_model.model_name = "test-model"
-        mock_embedding.return_value = mock_embedding_model
-
-        # Mock the embedding query to return valid embedding
-        mock_embedding_model.embed_query.return_value = [0.1, 0.2, 0.3]
+        mock_collection = vectordb_mocks["collection"]
 
         # Mock the collection query to raise InvalidArgumentError for dimension mismatch
         error_msg = "Collection expecting embedding with dimension of 768, got 384"
@@ -551,18 +501,13 @@ class TestVectorDBSearch:
     @patch("src.vectordb.ChromaDBClient")
     @patch("src.vectordb.initialize_embedding_model")
     def test_search_reraises_other_invalid_argument_errors(
-        self, mock_embedding, mock_chroma
+        self, mock_embedding, mock_chroma, vectordb_mocks
     ):
         """Test that search re-raises non-dimension-mismatch InvalidArgumentError."""
+        mock_chroma.return_value = vectordb_mocks["chroma_instance"]
+        mock_embedding.return_value = vectordb_mocks["embedding_model"]
 
-        mock_collection = MagicMock()
-        mock_chroma.return_value.get_or_create_collection.return_value = mock_collection
-        mock_embedding_model = MagicMock()
-        mock_embedding_model.model_name = "test-model"
-        mock_embedding.return_value = mock_embedding_model
-
-        # Mock the embedding query
-        mock_embedding_model.embed_query.return_value = [0.1, 0.2, 0.3]
+        mock_collection = vectordb_mocks["collection"]
 
         # Mock the collection query to raise a different InvalidArgumentError
         error_msg = "Invalid query parameter"

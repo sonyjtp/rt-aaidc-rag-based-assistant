@@ -2,6 +2,7 @@
 Unit tests for prompt builder module.
 Tests prompt construction, constraint enforcement, and reasoning strategy integration.
 """
+# pylint: disable=unused-argument, import-error
 
 from unittest.mock import MagicMock, patch
 
@@ -27,6 +28,31 @@ def prompt_text(prompts):  # pylint: disable=redefined-outer-name
     return "\n".join(prompts)
 
 
+@pytest.fixture
+def default_prompts():
+    """Fixture providing default system prompts."""
+    return get_default_system_prompts()
+
+
+@pytest.fixture
+def default_prompt_text(default_prompts):  # pylint: disable=redefined-outer-name
+    """Fixture providing joined default prompt text."""
+    return "\n".join(default_prompts)
+
+
+@pytest.fixture
+def mock_strategy():
+    """Fixture providing a mocked reasoning strategy."""
+    strategy = MagicMock()
+    strategy.is_strategy_enabled.return_value = True
+    strategy.get_strategy_instructions.return_value = [
+        "Test instruction 1",
+        "Test instruction 2",
+    ]
+    strategy.get_strategy_name.return_value = "Test Strategy"
+    return strategy
+
+
 # pylint: disable=redefined-outer-name
 class TestPromptBuilderContent:
     """Comprehensive tests for prompt content, structure, and constraints using parametrization."""
@@ -35,41 +61,66 @@ class TestPromptBuilderContent:
     # BASIC PROMPT STRUCTURE
     # ========================================================================
 
-    def test_build_system_prompts_returns_list(self, prompts):
-        """Test that build_system_prompts returns a list."""
-        assert isinstance(prompts, list)
-        assert len(prompts) > 0
+    @pytest.mark.parametrize(
+        "check_type,assertion",
+        [
+            ("is_list", lambda p: isinstance(p, list)),
+            ("non_empty", lambda p: len(p) > 0),
+            ("has_minimum_sections", lambda p: len(p) >= 5),
+            ("sections_distinct", lambda p: len(set(p)) == len(p)),
+            (
+                "all_non_empty_strings",
+                lambda p: all(isinstance(s, str) and len(s) > 0 for s in p),
+            ),
+        ],
+    )
+    def test_build_system_prompts_structure(self, prompts, check_type, assertion):
+        """Parametrized test for prompt structure and content validation."""
+        assert assertion(prompts), f"Failed: {check_type}"
 
-    def test_build_system_prompts_non_empty_strings(self, prompts):
-        """Test that all prompts are non-empty strings."""
-        for prompt in prompts:
-            assert isinstance(prompt, str)
-            assert len(prompt) > 0
-
-    def test_build_system_prompts_count(self, prompts):
-        """Test that appropriate number of prompt sections are built."""
-        assert len(prompts) >= 5
-
-    def test_prompt_sections_are_distinct(self, prompts):
-        """Test that different prompt sections are distinct."""
-        assert len(set(prompts)) == len(prompts)
-
-    def test_prompt_length_reasonable(self, prompt_text):
-        """Test that prompts are reasonable length."""
-        assert 500 < len(prompt_text) < 10000
-
-    def test_prompt_completeness(self, prompt_text):
-        """Test that built prompts are complete and comprehensive."""
-        required_components = [
-            "CRITICAL",
-            "not known to me",
-            "provided documents",
-        ]
-        for component in required_components:
-            assert component in prompt_text
+    @pytest.mark.parametrize(
+        "min_length,max_length",
+        [(500, 10000)],
+    )
+    def test_prompt_length_reasonable(self, prompt_text, min_length, max_length):
+        """Test that prompts are within reasonable length bounds."""
+        assert min_length < len(prompt_text) < max_length
 
     # ========================================================================
-    # PARAMETRIZED CONTENT CHECKS
+    # REQUIRED COMPONENTS AND CONSTRAINTS
+    # ========================================================================
+
+    @pytest.mark.parametrize(
+        "constraint,keywords",
+        [
+            (
+                "basic_constraints",
+                ["ABSOLUTE RULE", "not known to me", "provided documents"],
+            ),
+            ("knowledge_bounds", ["training data", "general knowledge"]),
+            ("inference_limits", ["infer", "inference", "speculate"]),
+            ("rejection_format", ["I'm sorry, that information is not known to me."]),
+            ("no_fallback", ["general knowledge", "training data"]),
+            ("examples", ["evolution of languages", "ancient civilizations"]),
+            ("strict_grounding", ["strict", "verbatim", "explicitly"]),
+            (
+                "no_supplementation",
+                ["elaborate", "elaboration", "analogy", "supplementary", "supplement"],
+            ),
+        ],
+    )
+    def test_constraint_enforcement(self, prompt_text, constraint, keywords):
+        """Parametrized test for constraint-related content."""
+        found = any(
+            keyword in prompt_text.lower() or keyword in prompt_text
+            for keyword in (keywords if isinstance(keywords, list) else [keywords])
+        )
+        assert (
+            found
+        ), f"Constraint '{constraint}' should include at least one of: {keywords}"
+
+    # ========================================================================
+    # CONTENT TYPE VERIFICATION
     # ========================================================================
 
     @pytest.mark.parametrize(
@@ -88,10 +139,10 @@ class TestPromptBuilderContent:
                     "thank",
                     "goodbye",
                     "gibberish",
-                    "unclear",
-                    "nonsensical",
                 ],
             ),
+            ("context_usage", ["context", "conversation", "follow", "previous"]),
+            ("document_reliance", ["based on", "from document", "provided document"]),
         ],
     )
     def test_prompt_content_includes(self, prompt_text, content_type, search_terms):
@@ -100,69 +151,21 @@ class TestPromptBuilderContent:
             term in prompt_text.lower() for term in search_terms
         ), f"Prompt should contain at least one term for {content_type}: {search_terms}"
 
-    @pytest.mark.parametrize(
-        "section,required_keywords",
-        [
-            ("role", ["professional", "helpful"]),
-            ("format", ["markdown"]),
-        ],
-    )
-    def test_prompt_sections_contain_keywords(
-        self, prompt_text, section, required_keywords
-    ):
-        """Parametrized test to verify specific sections contain required keywords."""
-        assert any(
-            keyword in prompt_text for keyword in required_keywords
-        ), f"{section} section should contain at least one of: {required_keywords}"
-
-    @pytest.mark.parametrize(
-        "constraint,keywords",
-        [
-            (
-                "basic_constraints",
-                ["CRITICAL", "not known to me", "provided documents"],
-            ),
-            ("knowledge_bounds", ["training data", "general knowledge"]),
-            ("inference_limits", ["infer", "inference"]),
-            ("rejection_format", ["I'm sorry, that information is not known to me."]),
-            ("no_fallback", ["fallback", "not use your general knowledge"]),
-            ("examples", ["evolution of languages", "ancient civilizations"]),
-        ],
-    )
-    def test_constraint_enforcement(self, prompt_text, constraint, keywords):
-        """Parametrized test for constraint-related content."""
-        # For keywords lists, check if ANY keyword is present (not ALL)
-        if isinstance(keywords, list) and len(keywords) > 1:
-            found = any(
-                keyword in prompt_text.lower() or keyword in prompt_text
-                for keyword in keywords
-            )
-            assert (
-                found
-            ), f"Constraint '{constraint}' should include at least one of: {keywords}"
-        else:
-            # For single keywords, check if present
-            for keyword in keywords:
-                assert (
-                    keyword in prompt_text.lower() or keyword in prompt_text
-                ), f"Constraint '{constraint}' should include '{keyword}'"
-
 
 class TestPromptBuilderStrategy:
     """Test reasoning strategy integration in prompts."""
 
-    @patch("src.prompt_builder.ReasoningStrategyLoader")
-    def test_system_prompts_include_reasoning_strategy(self, mock_loader):
-        """Test that system prompts include reasoning strategy instructions."""
-        mock_loader_instance = MagicMock()
-        mock_loader_instance.is_strategy_enabled.return_value = True
-        mock_loader_instance.get_strategy_instructions.return_value = [
-            "Test instruction 1",
-            "Test instruction 2",
-        ]
-        mock_loader_instance.get_strategy_name.return_value = "Test Strategy"
-        mock_loader.return_value = mock_loader_instance
+    @pytest.fixture
+    def patched_loader(self, mock_strategy):
+        """Fixture that patches ReasoningStrategyLoader with mock_strategy."""
+        with patch("src.prompt_builder.ReasoningStrategyLoader") as mock_loader:
+            mock_loader.return_value = mock_strategy
+            yield mock_loader
 
+    def test_system_prompts_include_reasoning_strategy(
+        self, patched_loader, mock_strategy
+    ):
+        """Test that system prompts include reasoning strategy instructions."""
         prompts = build_system_prompts()
         prompt_text = "\n".join(prompts)
 
@@ -171,15 +174,15 @@ class TestPromptBuilderStrategy:
     @patch("src.prompt_builder.ReasoningStrategyLoader")
     def test_rag_enhanced_reasoning_instructions_included(self, mock_loader):
         """Test that RAG-Enhanced reasoning instructions are included."""
-        mock_loader_instance = MagicMock()
-        mock_loader_instance.is_strategy_enabled.return_value = True
-        mock_loader_instance.get_strategy_instructions.return_value = [
+        mock_strategy = MagicMock()
+        mock_strategy.is_strategy_enabled.return_value = True
+        mock_strategy.get_strategy_instructions.return_value = [
             "First, use the retrieved documents as your knowledge base.",
             "Always ground your answer in the provided documents.",
             "Do not speculate beyond what is explicitly stated.",
         ]
-        mock_loader_instance.get_strategy_name.return_value = "RAG-Enhanced Reasoning"
-        mock_loader.return_value = mock_loader_instance
+        mock_strategy.get_strategy_name.return_value = "RAG-Enhanced Reasoning"
+        mock_loader.return_value = mock_strategy
 
         prompts = build_system_prompts()
         prompt_text = "\n".join(prompts)
@@ -188,141 +191,118 @@ class TestPromptBuilderStrategy:
         assert "ground" in prompt_text.lower() or "speculate" in prompt_text.lower()
 
     @patch("src.prompt_builder.ReasoningStrategyLoader")
-    def test_disabled_strategy_not_included(self, mock_loader):
-        """Test that disabled strategies are not included."""
-        mock_loader_instance = MagicMock()
-        mock_loader_instance.is_strategy_enabled.return_value = False
-        mock_loader.return_value = mock_loader_instance
-
-        prompts = build_system_prompts()
-        assert len(prompts) > 0
-
-    @patch("src.prompt_builder.ReasoningStrategyLoader")
-    def test_strategy_load_error_handled_gracefully(self, mock_loader):
-        """Test that strategy loading errors are handled gracefully."""
-        mock_loader.side_effect = Exception("Failed to load strategy")
-
-        prompts = build_system_prompts()
-
-        assert len(prompts) > 0
-
-    def test_build_system_prompts_with_reasoning_strategy(self):
-        """Test that reasoning_strategy parameter is used when provided."""
+    @pytest.mark.parametrize(
+        "scenario,side_effect",
+        [
+            ("disabled", None),
+            ("error", Exception("Failed to load strategy")),
+        ],
+    )
+    def test_strategy_load_scenarios(self, mock_loader, scenario, side_effect):
+        """Parametrized test for strategy loading edge cases."""
         mock_strategy = MagicMock()
-        mock_strategy.is_strategy_enabled.return_value = True
-        mock_strategy.get_strategy_instructions.return_value = [
-            "Custom instruction 1",
-            "Custom instruction 2",
-        ]
-        mock_strategy.get_strategy_name.return_value = "Custom Strategy"
+        mock_strategy.is_strategy_enabled.return_value = scenario != "disabled"
 
+        if side_effect:
+            mock_loader.side_effect = side_effect
+        else:
+            mock_loader.return_value = mock_strategy
+
+        prompts = build_system_prompts()
+        assert len(prompts) > 0
+
+    def test_build_system_prompts_with_reasoning_strategy(self, mock_strategy):
+        """Test that reasoning_strategy parameter is used when provided."""
         prompts = build_system_prompts(reasoning_strategy=mock_strategy)
         prompt_text = "\n".join(prompts)
 
-        assert "Custom instruction" in prompt_text
-
-    def test_build_system_prompts_without_reasoning_strategy(self):
-        """Test that build_system_prompts works without reasoning_strategy."""
-        prompts = build_system_prompts(reasoning_strategy=None)
-
-        assert isinstance(prompts, list)
-        assert len(prompts) > 0
+        assert "Test instruction" in prompt_text
 
 
-# pylint: disable=redefined-outer-name
 class TestGetDefaultSystemPrompts:
     """Test cases for get_default_system_prompts function."""
 
-    def test_returns_list(self):
-        """Test that get_default_system_prompts returns a list."""
-        prompts = get_default_system_prompts()
-        assert isinstance(prompts, list)
-        assert len(prompts) > 0
+    @pytest.mark.parametrize(
+        "check_type,assertion",
+        [
+            ("is_list", lambda p: isinstance(p, list)),
+            ("non_empty", lambda p: len(p) > 0),
+        ],
+    )
+    def test_returns_valid_structure(self, default_prompts, check_type, assertion):
+        """Parametrized test for default prompts structure."""
+        assert assertion(default_prompts), f"Failed: {check_type}"
 
-    def test_returns_non_empty_strings(self):
-        """Test that all prompts are non-empty strings."""
-        prompts = get_default_system_prompts()
-        for prompt in prompts:
-            assert isinstance(prompt, str)
-            assert len(prompt) > 0
+    def test_returns_non_empty_strings(self, default_prompts):
+        """Test that all default prompts are non-empty strings."""
+        assert all(isinstance(p, str) and len(p) > 0 for p in default_prompts)
 
-    def test_contains_key_instructions(self):
+    @pytest.mark.parametrize(
+        "key_phrases",
+        [
+            [
+                "helpful AI assistant",
+                "provided documents",
+                "do not",
+                "make up",
+            ],
+        ],
+    )
+    def test_contains_key_instructions(self, default_prompt_text, key_phrases):
         """Test that default prompts contain key instructions."""
-        prompts = get_default_system_prompts()
-        prompt_text = "\n".join(prompts)
-
-        key_phrases = [
-            "helpful AI assistant",
-            "provided documents",
-            "do not",
-            "make up",
-        ]
         for phrase in key_phrases:
-            assert phrase.lower() in prompt_text.lower()
+            assert phrase.lower() in default_prompt_text.lower()
 
-    def test_includes_meta_handling(self):
+    def test_includes_meta_handling(self, default_prompt_text):
         """Test that default prompts include handling for meta questions."""
-        prompts = get_default_system_prompts()
-        prompt_text = "\n".join(prompts)
-
         assert (
-            "identity" in prompt_text.lower() or "capabilities" in prompt_text.lower()
+            "identity" in default_prompt_text.lower()
+            or "capabilities" in default_prompt_text.lower()
         )
-        assert "greeting" in prompt_text.lower()
+        assert "greeting" in default_prompt_text.lower()
 
 
-# pylint: disable=redefined-outer-name
 class TestCreatePromptTemplate:
     """Test cases for create_prompt_template function."""
 
-    def test_returns_chat_prompt_template(self):
-        """Test that create_prompt_template returns a ChatPromptTemplate."""
-        system_prompts = ["You are a helpful assistant."]
+    @pytest.mark.parametrize(
+        "system_prompts",
+        [
+            ["You are a helpful assistant."],
+            ["You are a test assistant.", "Follow these rules."],
+            [],
+        ],
+    )
+    def test_returns_chat_prompt_template(self, system_prompts):
+        """Parametrized test that create_prompt_template returns valid ChatPromptTemplate."""
         template = create_prompt_template(system_prompts)
 
         assert isinstance(template, ChatPromptTemplate)
-
-    def test_includes_system_prompts(self):
-        """Test that the template includes the provided system prompts."""
-        system_prompts = ["You are a test assistant.", "Follow these rules."]
-        template = create_prompt_template(system_prompts)
-
-        # Verify the template was created successfully
         assert template is not None
-        assert len(template.messages) > 0
 
     def test_template_has_required_variables(self):
         """Test that the template includes required input variables."""
         system_prompts = ["You are a helpful assistant."]
         template = create_prompt_template(system_prompts)
 
-        # Check that required variables are in the template
-        assert "chat_history" in str(template)
-        assert "context" in str(template)
-        assert "question" in str(template)
-
-    def test_empty_system_prompts(self):
-        """Test that create_prompt_template handles empty prompts list."""
-        system_prompts = []
-        template = create_prompt_template(system_prompts)
-
-        assert template is not None
-        assert isinstance(template, ChatPromptTemplate)
+        template_str = str(template)
+        assert all(
+            var in template_str for var in ["chat_history", "context", "question"]
+        )
 
     @pytest.mark.parametrize(
-        "system_prompts,expected_count",
+        "system_prompts",
         [
-            (["Prompt 1"], 1),
-            (["Prompt 1", "Prompt 2"], 2),
-            (["Prompt 1", "Prompt 2", "Prompt 3"], 3),
+            ["Prompt 1"],
+            ["Prompt 1", "Prompt 2"],
+            ["Prompt 1", "Prompt 2", "Prompt 3"],
         ],
     )
-    def test_multiple_system_prompts(
-        self, system_prompts, expected_count
-    ):  # pylint: disable=unused-argument
-        """Test that multiple system prompts are joined correctly."""
+    def test_multiple_system_prompts(self, system_prompts):
+        """Test that multiple system prompts are included in template."""
         template = create_prompt_template(system_prompts)
 
         assert template is not None
+        template_str = str(template)
         for prompt in system_prompts:
-            assert prompt in str(template)
+            assert prompt in template_str

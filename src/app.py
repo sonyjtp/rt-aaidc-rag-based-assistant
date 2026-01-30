@@ -40,7 +40,6 @@ def main():
 
     except (FileNotFoundError, ValueError, RuntimeError) as e:
         logger.error(f"Error running RAG assistant: {e}")
-        logger.error("An error occurred while running the assistant. Please try again.")
 
 
 if __name__ == "__main__":

@@ -3,7 +3,7 @@ Integration tests for app.py CLI interface.
 Tests the main entry point with mocked user input.
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -17,28 +17,6 @@ class TestAppMain:
     def reset_mocks(self):
         """Reset mocks after each test."""
         yield
-
-    @pytest.fixture
-    def mocked_assistant(self):
-        """Fixture providing a mocked RAGAssistant instance."""
-        mock_assistant_instance = MagicMock()
-        mock_assistant_instance.invoke.return_value = "Response"
-        yield mock_assistant_instance
-        mock_assistant_instance.reset_mock()
-
-    @pytest.fixture
-    def app_mocks(self):
-        """Fixture providing mocked app dependencies."""
-        with patch("src.app.input") as mock_input, patch(
-            "src.app.RAGAssistant"
-        ) as mock_assistant, patch(
-            "src.app.load_documents", return_value=["Doc 1"]
-        ) as mock_load_docs:
-            yield {
-                "input": mock_input,
-                "assistant": mock_assistant,
-                "load_docs": mock_load_docs,
-            }
 
     def test_main_loads_documents(self, app_mocks, mocked_assistant):
         """Test that main() loads documents on startup."""
@@ -73,14 +51,25 @@ class TestAppMain:
         mocked_assistant.invoke.assert_not_called()
 
     @pytest.mark.parametrize(
-        "exception,target",
+        "exception_target",
         [
-            (FileNotFoundError("Documents not found"), "src.app.load_documents"),
-            (ValueError("Invalid document format"), "src.app.load_documents"),
-            (RuntimeError("Model loading failed"), "src.app.RAGAssistant"),
+            pytest.param(
+                (FileNotFoundError("Documents not found"), "src.app.load_documents"),
+                id="file_not_found",
+            ),
+            pytest.param(
+                (ValueError("Invalid document format"), "src.app.load_documents"),
+                id="value_error",
+            ),
+            pytest.param(
+                (RuntimeError("Model loading failed"), "src.app.RAGAssistant"),
+                id="runtime_error",
+            ),
         ],
+        indirect=True,
     )
-    def test_main_handles_exceptions(self, exception, target):
+    def test_main_handles_exceptions(self, exception_target):
         """Test that main() handles various exceptions gracefully."""
-        with patch(target, side_effect=exception):
+        with patch("src.app.logger") as mock_logger:
             main()
+            mock_logger.error.assert_called_once()

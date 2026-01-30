@@ -1,7 +1,9 @@
 """RAG-based AI assistant using ChromaDB and multiple LLM providers."""
+import time
+
 from langchain_core.output_parsers import StrOutputParser
 
-from config import DISTANCE_THRESHOLD, RETRIEVAL_K
+from config import DISTANCE_THRESHOLD, MEMORY_KEY_PARAM, RETRIEVAL_K
 from llm_utils import initialize_llm
 from logger import logger
 from memory_manager import MemoryManager
@@ -167,9 +169,81 @@ class RAGAssistant:
                 f"Retrieved Result {i + 1}: {doc}, similarity_score: {sim_score}"
             )
 
+    def _is_context_relevant_to_query(self, query: str, context: str) -> bool:
+        """
+        Validate that retrieved context actually addresses the user's query.
+        Uses the LLM to perform semantic validation.
+
+        Args:
+            query: User's question
+            context: Retrieved document context
+
+        Returns:
+            True if context answers the query, False otherwise
+        """
+        if not context or not context.strip():
+            return False
+
+        if not self.llm:
+            logger.warning(
+                "LLM not available for context validation, assuming relevant"
+            )
+            return True
+
+        try:
+            validation_prompt = (
+                f"Does the following context contain information that directly "
+                f"addresses this question? Answer with only 'YES' or 'NO'.\n\n"
+                f"Question: {query}\n\n"
+                f"Context: {context[:500]}"  # Limit to first 500 chars for speed
+            )
+            result = self.llm.invoke(validation_prompt)
+            # Handle both string and AIMessage responses
+            result_str = str(result) if not isinstance(result, str) else result
+            # For AIMessage objects, extract content attribute
+            if hasattr(result, "content"):
+                result_str = result.content
+            is_relevant = "YES" in result_str.upper()
+            logger.debug(f"Context relevance validation: {is_relevant}")
+            return is_relevant
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logger.warning(f"Error validating context relevance: {e}")
+            # On error, assume context is relevant to avoid false negatives
+            return True
+
+    def _augment_query_with_context(self, query: str) -> str:
+        """
+        Augment the user's query with recent conversation context.
+        This helps resolve pronouns and references in follow-up questions.
+
+        Args:
+            query: Original user query
+
+        Returns:
+            Augmented query that includes recent context
+        """
+        if not self.memory_manager:
+            return query
+
+        try:
+            memory_vars = self.memory_manager.get_memory_variables()
+            chat_history = memory_vars.get(MEMORY_KEY_PARAM, "")
+
+            if chat_history and chat_history != "No previous conversation context.":
+                # Extract the last exchange to provide context
+                # This helps resolve pronouns like "it" in follow-up questions
+                augmented_query = f"{chat_history}\n\nCurrent question: {query}"
+                logger.debug("Query augmented with chat history context")
+                return augmented_query
+
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logger.warning(f"Could not augment query with context: {e}")
+
+        return query
+
     def invoke(self, query: str, n_results: int = RETRIEVAL_K) -> str:
         """
-        Query the RAG assistant.
+        Query the RAG assistant with a user question.
 
         Args:
             query: User's input
@@ -178,12 +252,20 @@ class RAGAssistant:
         Returns:
             String answer from the LLM based on retrieved context
         """
+        # Start timing
+        start_time = time.time()
+
         if not self.chain:
             return "RAG Assistant is not properly initialized."
 
+        # ...existing code...
+        search_query = self._augment_query_with_context(query)
+
         try:
             search_results = self.vector_db.search(
-                query=query, n_results=n_results, maximum_distance=DISTANCE_THRESHOLD
+                query=search_query,
+                n_results=n_results,
+                maximum_distance=DISTANCE_THRESHOLD,
             )
         except ValueError as e:
             logger.error(f"Configuration error during search: {e}")
@@ -202,6 +284,12 @@ class RAGAssistant:
             else ""
         )
 
+        # Validate that retrieved context actually addresses the query
+        # This prevents hallucinations from false positive vector matches
+        if context and context.strip():
+            if not self._is_context_relevant_to_query(query, context):
+                logger.debug(f"Retrieved context not relevant to query: {query}")
+                context = ""  # Clear context to force "not known to me" response
         try:
             memory_vars = (
                 self.memory_manager.get_memory_variables()
@@ -211,7 +299,7 @@ class RAGAssistant:
             chain_inputs = {
                 "context": context,
                 "question": query,
-                "chat_history": memory_vars.get("chat_history", "")
+                MEMORY_KEY_PARAM: memory_vars.get(MEMORY_KEY_PARAM, "")
                 or "No previous conversation context.",
             }
 
@@ -223,8 +311,20 @@ class RAGAssistant:
                 "Please try again."
             )
 
+        # Calculate elapsed time
+        elapsed_time = time.time() - start_time
+        elapsed_ms = elapsed_time * 1000
+
         logger.debug(f"Query: {query}")
         logger.debug(f"Query Result: {response}")
+
+        # Log warning if response time exceeds 5 seconds
+        if elapsed_ms > 5000:
+            logger.warning(
+                f"Slow response detected: {elapsed_ms:.2f}ms for query: {query}"
+            )
+        else:
+            logger.debug(f"Response time: {elapsed_ms:.2f}ms")
 
         if self.memory_manager:
             self.memory_manager.add_message(input_text=query, output_text=response)

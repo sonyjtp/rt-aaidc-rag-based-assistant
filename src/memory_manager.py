@@ -56,7 +56,7 @@ class MemoryManager:
         """
         try:
             return load_yaml(MEMORY_STRATEGIES_FPATH).get(self.strategy, {})
-        except (yaml.YAMLError, FileNotFoundError, IOError):
+        except Exception:  # catch any error while loading/parsing the YAML
             logger.warning("Unable to initialize memory strategy.")
             return {}
 

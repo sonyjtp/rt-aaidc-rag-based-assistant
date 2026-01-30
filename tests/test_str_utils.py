@@ -3,6 +3,7 @@ import pytest
 from src.str_utils import format_tags
 
 
+# pylint: disable=too-few-public-methods
 class TestFormatTags:
     """Test cases for format_tags function."""
 

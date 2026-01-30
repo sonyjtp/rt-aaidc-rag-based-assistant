@@ -2,71 +2,63 @@
 Unit tests for SlidingWindowMemory implementation.
 Tests window management, summarization, and memory operations.
 """
+# pylint: disable=unused-argument
 
 from collections import deque
 from unittest.mock import MagicMock
+
+import pytest
 
 from config import DEFAULT_MEMORY_SLIDING_WINDOW_SIZE
 from src.sliding_window_memory import SlidingWindowMemory
 
 
-# pylint: disable=protected-access, attribute-defined-outside-init
-class TestSlidingWindowMemoryInitialization:
-    """Test SlidingWindowMemory initialization."""
+# pylint: disable=protected-access, attribute-defined-outside-init, too-many-public-methods
+class TestSlidingWindowMemory:
+    """Unified test class for SlidingWindowMemory covering all functionality."""
 
     def setup_method(self):
         """Set up test fixtures before each test."""
         self.mock_llm = MagicMock()
 
-    def test_init_with_defaults(self):
-        """Test initialization with default parameters."""
+    # ========================================================================
+    # INITIALIZATION TESTS
+    # ========================================================================
 
-        memory = SlidingWindowMemory(llm=self.mock_llm)
+    @pytest.mark.parametrize(
+        "window_size,memory_key,expected_maxlen",
+        [
+            (
+                DEFAULT_MEMORY_SLIDING_WINDOW_SIZE,
+                "chat_history",
+                DEFAULT_MEMORY_SLIDING_WINDOW_SIZE,
+            ),
+            (10, "chat_history", 10),
+            (
+                DEFAULT_MEMORY_SLIDING_WINDOW_SIZE,
+                "conversation",
+                DEFAULT_MEMORY_SLIDING_WINDOW_SIZE,
+            ),
+            (7, "custom_key", 7),
+        ],
+    )
+    def test_initialization(self, window_size, memory_key, expected_maxlen):
+        """Parametrized test for initialization with various configurations."""
+        memory = SlidingWindowMemory(
+            llm=self.mock_llm, window_size=window_size, memory_key=memory_key
+        )
 
         assert memory.llm == self.mock_llm
-        assert memory.window_size == DEFAULT_MEMORY_SLIDING_WINDOW_SIZE
-        assert memory.memory_key == "chat_history"
+        assert memory.window_size == window_size
+        assert memory.memory_key == memory_key
+        assert isinstance(memory.messages, deque)
+        assert memory.messages.maxlen == expected_maxlen
         assert len(memory.messages) == 0
         assert memory.summary == ""
 
-    def test_init_with_custom_window_size(self):
-        """Test initialization with custom window size."""
-
-        memory = SlidingWindowMemory(llm=self.mock_llm, window_size=10)
-
-        assert memory.window_size == 10
-        assert memory.messages.maxlen == 10
-
-    def test_init_with_custom_memory_key(self):
-        """Test initialization with custom memory key."""
-
-        memory = SlidingWindowMemory(llm=self.mock_llm, memory_key="conversation")
-
-        assert memory.memory_key == "conversation"
-
-    def test_messages_is_deque_with_maxlen(self):
-        """Test that messages is a deque with maxlen set."""
-        window_size = 7
-
-        memory = SlidingWindowMemory(llm=self.mock_llm, window_size=window_size)
-
-        assert isinstance(memory.messages, deque)
-        assert memory.messages.maxlen == window_size
-
-    def test_initial_summary_is_empty(self):
-        """Test that initial summary is empty string."""
-
-        memory = SlidingWindowMemory(llm=self.mock_llm)
-
-        assert memory.summary == ""
-
-
-class TestSlidingWindowMemorySaveContext:
-    """Test message saving and window management."""
-
-    def setup_method(self):
-        """Set up test fixtures before each test."""
-        self.mock_llm = MagicMock()
+    # ========================================================================
+    # SAVE CONTEXT TESTS
+    # ========================================================================
 
     def test_save_single_message(self):
         """Test saving a single message pair."""
@@ -103,18 +95,34 @@ class TestSlidingWindowMemorySaveContext:
         assert memory.messages[0]["output"] == "Answer"
         assert "extra" not in memory.messages[0]
 
+    @pytest.mark.parametrize(
+        "input_text,output_text",
+        [
+            ("What is the capital of France?", "Paris"),
+            ("Hello", "Hi there"),
+            ("Complex question with symbols!?", "Answer with symbols!"),
+        ],
+    )
+    def test_save_context_extracts_text(self, input_text, output_text):
+        """Parametrized test for text extraction in save_context."""
+        memory = SlidingWindowMemory(llm=self.mock_llm, window_size=5)
+
+        memory.save_context(
+            inputs={"input": input_text}, outputs={"output": output_text}
+        )
+
+        assert memory.messages[0]["input"] == input_text
+        assert memory.messages[0]["output"] == output_text
+
     def test_window_full_triggers_summarization(self):
         """Test that summarization triggers when window is full."""
         self.mock_llm.invoke.return_value = MagicMock(content="Summary of conversation")
         memory = SlidingWindowMemory(llm=self.mock_llm, window_size=3)
 
-        # Fill the window
         for i in range(3):
             memory.save_context(inputs={"input": f"Q{i}"}, outputs={"output": f"A{i}"})
 
-        # Window should be cleared after summarization
         assert len(memory.messages) == 0
-        # Summary should be set
         assert memory.summary == "Summary of conversation"
 
     def test_window_does_not_exceed_maxlen(self):
@@ -122,88 +130,50 @@ class TestSlidingWindowMemorySaveContext:
         self.mock_llm.invoke.return_value = MagicMock(content="Summary")
         memory = SlidingWindowMemory(llm=self.mock_llm, window_size=3)
 
-        # Add more messages than window size
         for i in range(5):
             memory.save_context(inputs={"input": f"Q{i}"}, outputs={"output": f"A{i}"})
 
-        # After summarization, window should be cleared
-        # Then new messages should be added
         assert len(memory.messages) <= 3
 
-    def test_save_context_extracts_input_text(self):
-        """Test that input text is correctly extracted."""
-        memory = SlidingWindowMemory(llm=self.mock_llm, window_size=5)
-
-        input_text = "What is the capital of France?"
-        memory.save_context(inputs={"input": input_text}, outputs={"output": "Paris"})
-
-        assert memory.messages[0]["input"] == input_text
-
-    def test_save_context_extracts_output_text(self):
-        """Test that output text is correctly extracted."""
-        memory = SlidingWindowMemory(llm=self.mock_llm, window_size=5)
-
-        output_text = "The capital of France is Paris."
-        memory.save_context(
-            inputs={"input": "What is the capital?"}, outputs={"output": output_text}
-        )
-
-        assert memory.messages[0]["output"] == output_text
-
-
-class TestSlidingWindowMemorySummarization:
-    """Test summarization logic."""
-
-    def setup_method(self):
-        """Set up test fixtures before each test."""
-        self.mock_llm = MagicMock()
+    # ========================================================================
+    # SUMMARIZATION TESTS
+    # ========================================================================
 
     def test_summarize_window_calls_llm(self):
         """Test that summarization calls the LLM."""
         self.mock_llm.invoke.return_value = MagicMock(content="Summary")
         memory = SlidingWindowMemory(llm=self.mock_llm, window_size=2)
 
-        # Add messages to trigger summarization
         for i in range(2):
             memory.save_context(inputs={"input": f"Q{i}"}, outputs={"output": f"A{i}"})
 
-        # LLM should be called
         assert self.mock_llm.invoke.called
 
-    def test_summarize_window_with_content_attribute(self):
-        """Test summarization when response has content attribute."""
-        response = MagicMock()
-        response.content = "Summarized content"
-        self.mock_llm.invoke.return_value = response
+    @pytest.mark.parametrize(
+        "response_type,expected_summary",
+        [
+            (MagicMock(content="Summarized content"), "Summarized content"),
+            ("String response", "String response"),
+        ],
+    )
+    def test_summarize_window_response_handling(self, response_type, expected_summary):
+        """Parametrized test for summarization response handling."""
+        self.mock_llm.invoke.return_value = response_type
         memory = SlidingWindowMemory(llm=self.mock_llm, window_size=2)
 
-        # Fill window
         for i in range(2):
             memory.save_context(inputs={"input": f"Q{i}"}, outputs={"output": f"A{i}"})
 
-        assert memory.summary == "Summarized content"
-
-    def test_summarize_window_without_content_attribute(self):
-        """Test summarization when response is string-convertible."""
-        self.mock_llm.invoke.return_value = "String response"
-        memory = SlidingWindowMemory(llm=self.mock_llm, window_size=2)
-
-        # Fill window
-        for i in range(2):
-            memory.save_context(inputs={"input": f"Q{i}"}, outputs={"output": f"A{i}"})
-
-        assert memory.summary == "String response"
+        assert memory.summary == expected_summary
 
     def test_summarize_window_clears_messages(self):
         """Test that messages are cleared after summarization."""
         self.mock_llm.invoke.return_value = MagicMock(content="Summary")
         memory = SlidingWindowMemory(llm=self.mock_llm, window_size=2)
 
-        # Fill window
         for i in range(2):
             memory.save_context(inputs={"input": f"Q{i}"}, outputs={"output": f"A{i}"})
 
-        # Messages should be cleared after summarization
         assert len(memory.messages) == 0
 
     def test_summarize_window_error_handling(self):
@@ -211,22 +181,17 @@ class TestSlidingWindowMemorySummarization:
         self.mock_llm.invoke.side_effect = Exception("LLM error")
         memory = SlidingWindowMemory(llm=self.mock_llm, window_size=2)
 
-        # Fill window - should not raise exception
         for i in range(2):
             memory.save_context(inputs={"input": f"Q{i}"}, outputs={"output": f"A{i}"})
 
-        # Summary should contain window text (fallback)
         assert "Q0" in memory.summary
         assert "A0" in memory.summary
 
     def test_summarize_empty_window(self):
         """Test summarization behavior with empty window."""
         memory = SlidingWindowMemory(llm=self.mock_llm, window_size=2)
-
-        # Manually call _summarize_window on empty window
         memory._summarize_window()
 
-        # Should return without error
         assert memory.summary == ""
 
     def test_summarize_includes_all_messages(self):
@@ -234,26 +199,18 @@ class TestSlidingWindowMemorySummarization:
         self.mock_llm.invoke.return_value = MagicMock(content="Summary")
         memory = SlidingWindowMemory(llm=self.mock_llm, window_size=3)
 
-        # Add messages
         for i in range(3):
             memory.save_context(
                 inputs={"input": f"Question {i}"}, outputs={"output": f"Answer {i}"}
             )
 
-        # Check that invoke was called with window text
         call_args = self.mock_llm.invoke.call_args[0][0]
-        assert "Question 0" in call_args
-        assert "Question 2" in call_args
-        assert "Answer 0" in call_args
-        assert "Answer 2" in call_args
+        assert all(f"Question {i}" in call_args for i in range(3))
+        assert all(f"Answer {i}" in call_args for i in range(3))
 
-
-class TestSlidingWindowMemoryLoadMemoryVariables:
-    """Test memory variables retrieval."""
-
-    def setup_method(self):
-        """Set up test fixtures before each test."""
-        self.mock_llm = MagicMock()
+    # ========================================================================
+    # LOAD MEMORY VARIABLES TESTS
+    # ========================================================================
 
     def test_load_memory_variables_empty(self):
         """Test loading memory when everything is empty."""
@@ -264,43 +221,6 @@ class TestSlidingWindowMemoryLoadMemoryVariables:
         assert "chat_history" in variables
         assert variables["chat_history"] == ""
 
-    def test_load_memory_variables_with_summary_only(self):
-        """Test loading memory with only summary."""
-        memory = SlidingWindowMemory(llm=self.mock_llm, memory_key="chat_history")
-        memory.summary = "Previous conversation summary"
-
-        variables = memory.load_memory_variables()
-
-        assert "Summary of previous conversation:" in variables["chat_history"]
-        assert "Previous conversation summary" in variables["chat_history"]
-
-    def test_load_memory_variables_with_recent_messages_only(self):
-        """Test loading memory with only recent messages."""
-        memory = SlidingWindowMemory(llm=self.mock_llm, window_size=5)
-
-        memory.save_context(inputs={"input": "Hello"}, outputs={"output": "Hi"})
-
-        variables = memory.load_memory_variables()
-
-        assert "Recent messages:" in variables["chat_history"]
-        assert "User: Hello" in variables["chat_history"]
-        assert "Assistant: Hi" in variables["chat_history"]
-
-    def test_load_memory_variables_with_both_summary_and_messages(self):
-        """Test loading memory with both summary and recent messages."""
-        memory = SlidingWindowMemory(llm=self.mock_llm, window_size=5)
-        memory.summary = "Previous summary"
-
-        memory.save_context(inputs={"input": "Q"}, outputs={"output": "A"})
-
-        variables = memory.load_memory_variables()
-        content = variables["chat_history"]
-
-        assert "Summary of previous conversation:" in content
-        assert "Previous summary" in content
-        assert "Recent messages:" in content
-        assert "User: Q" in content
-
     def test_load_memory_variables_custom_key(self):
         """Test loading memory with custom key."""
         memory = SlidingWindowMemory(llm=self.mock_llm, memory_key="conversation")
@@ -309,6 +229,36 @@ class TestSlidingWindowMemoryLoadMemoryVariables:
 
         assert "conversation" in variables
         assert "chat_history" not in variables
+
+    @pytest.mark.parametrize(
+        "has_summary,has_messages",
+        [
+            (True, False),
+            (False, True),
+            (True, True),
+        ],
+    )
+    def test_load_memory_variables_combinations(self, has_summary, has_messages):
+        """Parametrized test for various memory state combinations."""
+        memory = SlidingWindowMemory(llm=self.mock_llm, window_size=5)
+
+        if has_summary:
+            memory.summary = "Previous conversation summary"
+
+        if has_messages:
+            memory.save_context(inputs={"input": "Q"}, outputs={"output": "A"})
+
+        variables = memory.load_memory_variables()
+        content = variables["chat_history"]
+
+        if has_summary:
+            assert "Summary of previous conversation:" in content
+            assert "Previous conversation summary" in content
+
+        if has_messages:
+            assert "Recent messages:" in content
+            assert "User: Q" in content
+            assert "Assistant: A" in content
 
     def test_load_memory_variables_multiple_messages(self):
         """Test loading memory with multiple messages."""
@@ -333,75 +283,50 @@ class TestSlidingWindowMemoryLoadMemoryVariables:
         variables = memory.load_memory_variables()
         content = variables["chat_history"]
 
-        # Check proper formatting
         assert "User: Question" in content
         assert "Assistant: Answer" in content
 
+    # ========================================================================
+    # EDGE CASES AND SPECIAL SCENARIOS
+    # ========================================================================
 
-class TestSlidingWindowMemoryEdgeCases:
-    """Test edge cases and special scenarios."""
-
-    def setup_method(self):
-        """Set up test fixtures before each test."""
-        self.mock_llm = MagicMock()
-
-    def test_very_long_message(self):
-        """Test handling of very long messages."""
+    @pytest.mark.parametrize(
+        "message_content,description",
+        [
+            ("A" * 10000, "very_long_message"),
+            ("!@#$%^&*()_+-=[]{}|;:',.<>?/`~\n\t", "special_characters"),
+            ("Hello 世界 🚀 مرحبا", "unicode_characters"),
+            ("", "empty_string"),
+        ],
+    )
+    def test_handle_various_message_types(self, message_content, description):
+        """Parametrized test for handling various message types."""
         self.mock_llm.invoke.return_value = MagicMock(content="Summary")
-        memory = SlidingWindowMemory(llm=self.mock_llm, window_size=2)
-
-        long_text = "A" * 10000
-        memory.save_context(inputs={"input": long_text}, outputs={"output": long_text})
-
-        assert memory.messages[0]["input"] == long_text
-        assert memory.messages[0]["output"] == long_text
-
-    def test_special_characters_in_message(self):
-        """Test handling of special characters."""
         memory = SlidingWindowMemory(llm=self.mock_llm, window_size=5)
 
-        special_text = "!@#$%^&*()_+-=[]{}|;:',.<>?/`~\n\t"
         memory.save_context(
-            inputs={"input": special_text}, outputs={"output": special_text}
+            inputs={"input": message_content}, outputs={"output": message_content}
         )
 
-        assert memory.messages[0]["input"] == special_text
+        assert memory.messages[0]["input"] == message_content
+        assert memory.messages[0]["output"] == message_content
 
-    def test_unicode_characters(self):
-        """Test handling of unicode characters."""
+    @pytest.mark.parametrize(
+        "inputs,outputs,expected_input,expected_output",
+        [
+            ({}, {"output": "Answer"}, "", "Answer"),
+            ({"input": "Question"}, {}, "Question", ""),
+            ({}, {}, "", ""),
+        ],
+    )
+    def test_missing_keys(self, inputs, outputs, expected_input, expected_output):
+        """Parametrized test for handling missing input/output keys."""
         memory = SlidingWindowMemory(llm=self.mock_llm, window_size=5)
 
-        unicode_text = "Hello 世界 🚀 مرحبا"
-        memory.save_context(
-            inputs={"input": unicode_text}, outputs={"output": unicode_text}
-        )
+        memory.save_context(inputs=inputs, outputs=outputs)
 
-        assert memory.messages[0]["input"] == unicode_text
-
-    def test_empty_input_output(self):
-        """Test handling of empty input/output."""
-        memory = SlidingWindowMemory(llm=self.mock_llm, window_size=5)
-
-        memory.save_context(inputs={"input": ""}, outputs={"output": ""})
-
-        assert memory.messages[0]["input"] == ""
-        assert memory.messages[0]["output"] == ""
-
-    def test_missing_input_key(self):
-        """Test handling of missing input key."""
-        memory = SlidingWindowMemory(llm=self.mock_llm, window_size=5)
-
-        memory.save_context(inputs={}, outputs={"output": "Answer"})
-
-        assert memory.messages[0]["input"] == ""
-
-    def test_missing_output_key(self):
-        """Test handling of missing output key."""
-        memory = SlidingWindowMemory(llm=self.mock_llm, window_size=5)
-
-        memory.save_context(inputs={"input": "Question"}, outputs={})
-
-        assert memory.messages[0]["output"] == ""
+        assert memory.messages[0]["input"] == expected_input
+        assert memory.messages[0]["output"] == expected_output
 
     def test_window_size_one(self):
         """Test with window size of 1."""
@@ -410,7 +335,6 @@ class TestSlidingWindowMemoryEdgeCases:
 
         memory.save_context(inputs={"input": "Q"}, outputs={"output": "A"})
 
-        # Should trigger summarization immediately
         assert len(memory.messages) == 0
         assert memory.summary == "Summary"
 
@@ -419,19 +343,15 @@ class TestSlidingWindowMemoryEdgeCases:
         self.mock_llm.invoke.return_value = MagicMock(content="Summary")
         memory = SlidingWindowMemory(llm=self.mock_llm, window_size=2)
 
-        # First window
         for i in range(2):
             memory.save_context(
                 inputs={"input": f"Q1-{i}"}, outputs={"output": f"A1-{i}"}
             )
 
-        # Second window
         for i in range(2):
             memory.save_context(
                 inputs={"input": f"Q2-{i}"}, outputs={"output": f"A2-{i}"}
             )
 
-        # Should have new summary
         assert memory.summary != ""
-        # Messages should be cleared
         assert len(memory.messages) == 0
