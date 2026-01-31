@@ -80,7 +80,7 @@ class RAGAssistant:
         try:
             self.reasoning_strategy = ReasoningStrategyLoader()
             logger.info(
-                f"Reasoning strategy: {self.reasoning_strategy.get('name', self.reasoning_strategy.active_strategy)}"
+                f"Reasoning strategy: {self.reasoning_strategy.get_strategy_name()}"
             )
         except Exception as e:  # pylint: disable=broad-exception-caught
             logger.error(f"Error initializing reasoning strategy: {e}")
@@ -158,13 +158,16 @@ class RAGAssistant:
             flat_docs: Flattened list of documents
             flat_distances: Flattened list of distances
         """
-        for i, (doc, dist) in enumerate(zip(flat_docs, flat_distances)):
-            truncated_doc = (
-                doc[:50] + "..." if isinstance(doc, str) and len(doc) > 50 else doc
-            )
-            sim_score = 1 - dist
+        # Truncate documents to first 50 chars for readability
+        truncated_docs = [
+            doc[:50] + "..." if isinstance(doc, str) and len(doc) > 50 else doc
+            for doc in flat_docs
+        ]
+        # Convert distances to similarity scores (1 - distance)
+        similarity_scores = [1 - dist for dist in flat_distances]
+        for i, (doc, sim_score) in enumerate(zip(truncated_docs, similarity_scores)):
             logger.debug(
-                f"Retrieved Result {i + 1}: {truncated_doc}, similarity_score: {sim_score}"
+                f"Retrieved Result {i + 1}: {doc}, similarity_score: {sim_score}"
             )
 
     def _is_context_relevant_to_query(self, query: str, context: str) -> bool:
@@ -196,7 +199,11 @@ class RAGAssistant:
                 f"Context: {context[:500]}"  # Limit to first 500 chars for speed
             )
             result = self.llm.invoke(validation_prompt)
-            result_str = getattr(result, "content", str(result))
+            # Handle both string and AIMessage responses
+            result_str = str(result) if not isinstance(result, str) else result
+            # For AIMessage objects, extract content attribute
+            if hasattr(result, "content"):
+                result_str = result.content
             is_relevant = "YES" in result_str.upper()
             logger.debug(f"Context relevance validation: {is_relevant}")
             return is_relevant
@@ -246,14 +253,43 @@ class RAGAssistant:
         Returns:
             String answer from the LLM based on retrieved context
         """
+        # Start timing
         start_time = time.time()
 
         if not self.chain:
             return "RAG Assistant is not properly initialized."
 
         search_query = self._augment_query_with_context(query)
-        context = self._prepare_context(search_query, n_results)
 
+        try:
+            search_results = self.vector_db.search(
+                query=search_query,
+                n_results=n_results,
+                maximum_distance=DISTANCE_THRESHOLD,
+            )
+        except ValueError as e:
+            logger.error(f"Configuration error during search: {e}")
+            return (
+                "I'm unable to search the documents at the moment due to a system "
+                "configuration issue. Please try again later or contact support."
+            )
+
+        flat_docs, flat_distances = self._flatten_search_results(search_results)
+        self._log_search_results(flat_docs, flat_distances)
+
+        context = (
+            "\n".join(flat_docs)
+            if flat_docs
+            and (not flat_distances or flat_distances[0] <= DISTANCE_THRESHOLD)
+            else ""
+        )
+
+        # Validate that retrieved context actually addresses the query
+        # This prevents hallucinations from false positive vector matches
+        if context and context.strip():
+            if not self._is_context_relevant_to_query(query, context):
+                logger.debug(f"Retrieved context not relevant to query: {query}")
+                context = ""  # Clear context to force "not known to me" response
         try:
             memory_vars = (
                 self.memory_manager.get_memory_variables()
@@ -266,17 +302,23 @@ class RAGAssistant:
                 MEMORY_KEY_PARAM: memory_vars.get(MEMORY_KEY_PARAM, "")
                 or "No previous conversation context.",
             }
+
             response = self.chain.invoke(chain_inputs)
         except Exception as e:  # pylint: disable=broad-exception-caught
             logger.error(f"Error invoking chain: {e}")
-            response = "Unable to search for relevant information. Please try again."
+            response = (
+                "I encountered an error while processing your question. "
+                "Please try again."
+            )
 
+        # Calculate elapsed time
         elapsed_time = time.time() - start_time
         elapsed_ms = elapsed_time * 1000
 
         logger.debug(f"Query: {query}")
         logger.debug(f"Query Result: {response}")
 
+        # Log warning if response time exceeds 5 seconds
         if elapsed_ms > 5000:
             logger.warning(
                 f"Slow response detected: {elapsed_ms:.2f}ms for query: {query}"
@@ -288,44 +330,3 @@ class RAGAssistant:
             self.memory_manager.add_message(input_text=query, output_text=response)
 
         return response
-
-    def _prepare_context(self, search_query: str, n_results: int) -> str:
-        """
-        Prepare context by searching and validating relevance.
-
-        Args:
-            search_query: Augmented query
-            n_results: Number of results to retrieve
-
-        Returns:
-            Validated context string
-        """
-        try:
-            search_results = self.vector_db.search(
-                query=search_query,
-                n_results=n_results,
-                maximum_distance=DISTANCE_THRESHOLD,
-            )
-        except ValueError as e:
-            logger.error(f"Configuration error during search: {e}")
-            return ""
-
-        flat_docs, flat_distances = self._flatten_search_results(search_results)
-        self._log_search_results(flat_docs, flat_distances)
-
-        context = (
-            "\n".join(flat_docs)
-            if flat_docs
-            and (not flat_distances or flat_distances[0] <= DISTANCE_THRESHOLD)
-            else ""
-        )
-
-        if (
-            context
-            and context.strip()
-            and not self._is_context_relevant_to_query(search_query, context)
-        ):
-            logger.debug(f"Retrieved context not relevant to query: {search_query}")
-            context = ""
-
-        return context

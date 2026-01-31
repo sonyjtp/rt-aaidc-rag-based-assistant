@@ -5,7 +5,6 @@ Loads reasoning strategy configurations and provides methods to apply them.
 
 import config
 from file_utils import load_yaml
-from logger import logger
 
 
 class ReasoningStrategyLoader:
@@ -35,27 +34,46 @@ class ReasoningStrategyLoader:
             ValueError: If active strategy not found in configuration
         """
         if self.active_strategy not in self.strategies:
-            logger.warning(
-                f"Reasoning strategy {self.active_strategy} not found in configuration"
-            )
             raise ValueError(
                 f"Reasoning strategy '{self.active_strategy}' not found in configuration. "
                 f"Available strategies: {list(self.strategies.keys())}"
             )
         return self.strategies[self.active_strategy]
 
-    def get(self, property_name: str, default=None):
+    def get_strategy_instructions(self) -> list[str]:
         """
-        Get a property from the active reasoning strategy.
-
-        Args:
-            property_name: The configuration key to retrieve
-            default: Default value if key not found
+        Get prompt instructions for the active reasoning strategy.
 
         Returns:
-            The requested property value or default
+            List of instruction strings for the strategy
         """
-        return self._get_strategy_value(property_name, default)
+        strategy = self.get_active_strategy()
+        return strategy.get("prompt_instructions", [])
+
+    def get_strategy_name(self) -> str:
+        """Get the name of the active reasoning strategy."""
+        strategy = self.get_active_strategy()
+        return strategy.get("name", self.active_strategy)
+
+    def get_strategy_description(self) -> str:
+        """Get the description of the active reasoning strategy."""
+        strategy = self.get_active_strategy()
+        return strategy.get("description", "")
+
+    def is_strategy_enabled(self) -> bool:
+        """Check if the active strategy is enabled."""
+        strategy = self.get_active_strategy()
+        return strategy.get("enabled", False)
+
+    def get_few_shot_examples(self) -> list[dict]:
+        """
+        Get few-shot examples if available in the active strategy.
+
+        Returns:
+            List of example dictionaries with 'question' and 'answer' keys
+        """
+        strategy = self.get_active_strategy()
+        return strategy.get("examples", [])
 
     def get_all_enabled_strategies(self) -> list[str]:
         """
@@ -77,32 +95,18 @@ class ReasoningStrategyLoader:
         Returns:
             Formatted string with strategy name, description, and instructions
         """
+        strategy = self.get_active_strategy()
+        name = strategy.get("name", self.active_strategy)
+        description = strategy.get("description", "")
+        instructions = strategy.get("prompt_instructions", [])
+
         prompt_parts = [
-            f"Reasoning Strategy: {self.get('name', self.active_strategy)}",
-            f"Description: {self.get('description', '')}",
+            f"Reasoning Strategy: {name}",
+            f"Description: {description}",
             "Instructions:",
         ]
 
-        for i, instruction in enumerate(self.get("prompt_instructions", []), 1):
+        for i, instruction in enumerate(instructions, 1):
             prompt_parts.append(f"{i}. {instruction}")
 
         return "\n".join(prompt_parts)
-
-    def _get_strategy_value(self, key: str, default):
-        """
-        Get a value from the active strategy configuration.
-
-        Args:
-            key: Configuration key to retrieve
-            default: Default value if key not found
-
-        Returns:
-            Value from strategy configuration or default
-        """
-        if self.active_strategy not in self.strategies:
-            logger.warning(
-                f"Reasoning strategy {self.active_strategy} not found in configuration"
-            )
-            return default
-
-        return self.strategies[self.active_strategy].get(key, default)

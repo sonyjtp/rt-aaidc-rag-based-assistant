@@ -44,21 +44,12 @@ def default_prompt_text(default_prompts):  # pylint: disable=redefined-outer-nam
 def mock_strategy():
     """Fixture providing a mocked reasoning strategy."""
     strategy = MagicMock()
-
-    # Mock the .get() method to return appropriate values
-    def get_side_effect(key, default=None):
-        values = {
-            "enabled": True,
-            "prompt_instructions": [
-                "Test instruction 1",
-                "Test instruction 2",
-            ],
-            "name": "Test Strategy",
-        }
-        return values.get(key, default)
-
-    strategy.get.side_effect = get_side_effect
-    strategy.active_strategy = "test_strategy"
+    strategy.is_strategy_enabled.return_value = True
+    strategy.get_strategy_instructions.return_value = [
+        "Test instruction 1",
+        "Test instruction 2",
+    ]
+    strategy.get_strategy_name.return_value = "Test Strategy"
     return strategy
 
 
@@ -184,21 +175,13 @@ class TestPromptBuilderStrategy:
     def test_rag_enhanced_reasoning_instructions_included(self, mock_loader):
         """Test that RAG-Enhanced reasoning instructions are included."""
         mock_strategy = MagicMock()
-
-        def get_side_effect(key, default=None):
-            values = {
-                "enabled": True,
-                "prompt_instructions": [
-                    "First, use the retrieved documents as your knowledge base.",
-                    "Always ground your answer in the provided documents.",
-                    "Do not speculate beyond what is explicitly stated.",
-                ],
-                "name": "RAG-Enhanced Reasoning",
-            }
-            return values.get(key, default)
-
-        mock_strategy.get.side_effect = get_side_effect
-        mock_strategy.active_strategy = "rag_enhanced"
+        mock_strategy.is_strategy_enabled.return_value = True
+        mock_strategy.get_strategy_instructions.return_value = [
+            "First, use the retrieved documents as your knowledge base.",
+            "Always ground your answer in the provided documents.",
+            "Do not speculate beyond what is explicitly stated.",
+        ]
+        mock_strategy.get_strategy_name.return_value = "RAG-Enhanced Reasoning"
         mock_loader.return_value = mock_strategy
 
         prompts = build_system_prompts()
@@ -218,16 +201,7 @@ class TestPromptBuilderStrategy:
     def test_strategy_load_scenarios(self, mock_loader, scenario, side_effect):
         """Parametrized test for strategy loading edge cases."""
         mock_strategy = MagicMock()
-
-        def get_side_effect(key, default=None):
-            values = {
-                "enabled": scenario != "disabled",
-                "prompt_instructions": [],
-                "name": "Test Strategy",
-            }
-            return values.get(key, default)
-
-        mock_strategy.get.side_effect = get_side_effect
+        mock_strategy.is_strategy_enabled.return_value = scenario != "disabled"
 
         if side_effect:
             mock_loader.side_effect = side_effect
@@ -242,8 +216,7 @@ class TestPromptBuilderStrategy:
         prompts = build_system_prompts(reasoning_strategy=mock_strategy)
         prompt_text = "\n".join(prompts)
 
-        # Check that the instructions from the mock are included
-        assert "instruction" in prompt_text.lower() or "test" in prompt_text.lower()
+        assert "Test instruction" in prompt_text
 
 
 class TestGetDefaultSystemPrompts:

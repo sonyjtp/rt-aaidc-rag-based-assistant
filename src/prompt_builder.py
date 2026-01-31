@@ -52,8 +52,8 @@ def build_system_prompts(
     # Add reasoning strategy instructions
     try:
         strategy_loader = reasoning_strategy or ReasoningStrategyLoader()
-        if strategy_loader.get("enabled", False):
-            strategy_instructions = strategy_loader.get("prompt_instructions", [])
+        if strategy_loader.is_strategy_enabled():
+            strategy_instructions = strategy_loader.get_strategy_instructions()
             if strategy_instructions:
                 reasoning_prompt = (
                     "Apply the following reasoning approach:\n"
@@ -62,9 +62,7 @@ def build_system_prompts(
                     )
                 )
                 system_prompts.append(reasoning_prompt)
-                strategy_name = strategy_loader.get(
-                    "name", strategy_loader.active_strategy
-                )
+                strategy_name = strategy_loader.get_strategy_name()
                 logger.debug(
                     f"Added reasoning strategy {strategy_name} to system prompts."
                 )
