@@ -9,27 +9,14 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_groq import ChatGroq
 from langchain_openai import ChatOpenAI
 
-# ============================================================================
-# PATHS & DIRECTORIES
-# ============================================================================
-
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(ROOT_DIR, os.getenv("DATA_DIR", "data"))
-
-
-# ============================================================================
-# ERROR MESSAGES
-# ============================================================================
 
 ERROR_NO_API_KEY = (
     "No valid API key found. Please set one of: "
     "OPENAI_API_KEY, GROQ_API_KEY, or GOOGLE_API_KEY in your .env file"
 )
 
-
-# ============================================================================
-# LLM & MODEL CONFIGURATION
-# ============================================================================
 
 # LLM Behavior
 LLM_TEMPERATURE = 0.1  # 0.1 - 0.3 - low randomness for RAG use cases, higher values increase creativity
@@ -69,15 +56,8 @@ LLM_PROVIDERS = [
 ]
 
 
-# ============================================================================
-# DOCUMENT TYPES
-# ============================================================================
 # Could use any, a few, or all of : (".pdf", ".docx", ".txt", ".md")
 DOCUMENT_TYPES = ".txt"
-
-# ============================================================================
-# VECTOR DATABASE & EMBEDDINGS
-# ============================================================================
 
 # ChromaDB Configuration
 CHROMA_API_KEY_ENV = "CHROMA_API_KEY"
@@ -98,10 +78,6 @@ VECTOR_DB_EMBEDDING_MODEL = "sentence-transformers/all-mpnet-base-v2"
 PUNCTUATION_CHARS = ".,;:!? "
 
 
-# ============================================================================
-# DOCUMENT PROCESSING
-# ============================================================================
-
 # Text Chunking Configuration
 CHUNK_SIZE = 1024  # Increased from 512 to keep concepts together
 CHUNK_OVERLAP = 200  # Increased from 100 (20% overlap) for better context
@@ -110,11 +86,6 @@ TEXT_SPLITTER_SEPARATORS = ["\n\n", "\n", ". ", " ", ""]
 # Retrieval Configuration
 RETRIEVAL_K = 3
 DISTANCE_THRESHOLD = 0.6
-
-
-# ============================================================================
-# ASSISTANT STRATEGIES & CONFIGURATION FILES
-# ============================================================================
 
 # Memory Strategy Configuration
 MEMORY_STRATEGIES_FPATH = os.path.join(ROOT_DIR, "config", "memory_strategies.yaml")

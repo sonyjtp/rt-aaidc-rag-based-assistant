@@ -5,6 +5,7 @@ conversation memory strategy based on configuration. It supports multiple
 memory implementations and falls back gracefully when optional dependencies
 are not available.
 """
+from yaml import YAMLError
 
 from config import (
     DEFAULT_MAX_MESSAGES,
@@ -56,7 +57,7 @@ class MemoryManager:
         """
         try:
             return load_yaml(MEMORY_STRATEGIES_FPATH).get(self.strategy, {})
-        except Exception:  # catch any error while loading/parsing the YAML
+        except (FileNotFoundError, RuntimeError, IOError, YAMLError):
             logger.warning("Unable to initialize memory strategy.")
             return {}
 

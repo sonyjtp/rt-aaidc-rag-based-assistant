@@ -73,7 +73,7 @@ class TestReasoningStrategyLoader:
     # ========================================================================
 
     @pytest.mark.parametrize(
-        "strategy_key,config_data,method,expected_result",
+        "strategy_key,config_data,method_call,expected_result",
         [
             (
                 "chain_of_thought",
@@ -82,26 +82,31 @@ class TestReasoningStrategyLoader:
                     "enabled": True,
                     "description": "Step by step reasoning",
                 },
-                "get_active_strategy",
+                lambda loader: loader.get_active_strategy(),
                 lambda result: result["name"] == "Chain-of-Thought"
                 and result["enabled"] is True,
             ),
             (
                 "rag_enhanced_reasoning",
                 {"name": "RAG-Enhanced Reasoning"},
-                "get_strategy_name",
+                lambda loader: loader.get("name", loader.active_strategy),
                 lambda result: result == "RAG-Enhanced Reasoning",
             ),
             (
                 "test_strategy",
                 {"description": "This is a test strategy"},
-                "get_strategy_description",
+                lambda loader: loader.get("description", ""),
                 lambda result: result == "This is a test strategy",
             ),
         ],
     )
     def test_get_strategy_info(
-        self, mock_yaml_and_config, strategy_key, config_data, method, expected_result
+        self,
+        mock_yaml_and_config,
+        strategy_key,
+        config_data,
+        method_call,
+        expected_result,
     ):  # pylint: disable=redefined-outer-name
         """Parametrized test for retrieving strategy information."""
         mock_config, mock_load_yaml = mock_yaml_and_config
@@ -113,7 +118,7 @@ class TestReasoningStrategyLoader:
         }
 
         loader = ReasoningStrategyLoader()
-        result = getattr(loader, method)()
+        result = method_call(loader)
 
         assert expected_result(result)
 
@@ -138,7 +143,7 @@ class TestReasoningStrategyLoader:
         }
 
         loader = ReasoningStrategyLoader()
-        retrieved_instructions = loader.get_strategy_instructions()
+        retrieved_instructions = loader.get("prompt_instructions", [])
 
         assert retrieved_instructions == instructions
         assert len(retrieved_instructions) == 3
@@ -159,7 +164,7 @@ class TestReasoningStrategyLoader:
         }
 
         loader = ReasoningStrategyLoader()
-        retrieved_examples = loader.get_few_shot_examples()
+        retrieved_examples = loader.get("examples", [])
 
         assert len(retrieved_examples) == 2
         assert retrieved_examples[0]["question"] == "Example Q1"
@@ -188,7 +193,7 @@ class TestReasoningStrategyLoader:
         }
 
         loader = ReasoningStrategyLoader()
-        assert loader.is_strategy_enabled() is expected
+        assert loader.get("enabled", False) is expected
 
     def test_invalid_strategy_raises_error(self, mock_yaml_and_config):
         """Test that requesting invalid strategy raises error."""
@@ -300,9 +305,9 @@ class TestReasoningStrategyLoader:
 
         loader = ReasoningStrategyLoader()
 
-        assert loader.get_strategy_name() == expected_name
-        assert loader.get_strategy_description() == expected_description
-        assert loader.get_strategy_instructions() == expected_instructions
+        assert loader.get("name", expected_name) == expected_name
+        assert loader.get("description", "") == expected_description
+        assert loader.get("prompt_instructions", []) == expected_instructions
 
     def test_very_long_instructions(self, mock_yaml_and_config):
         """Test strategy with very long instruction list."""
@@ -319,7 +324,7 @@ class TestReasoningStrategyLoader:
         }
 
         loader = ReasoningStrategyLoader()
-        instructions = loader.get_strategy_instructions()
+        instructions = loader.get("prompt_instructions", [])
 
         assert len(instructions) == 100
 

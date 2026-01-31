@@ -28,7 +28,6 @@ LOG_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "logs")
 os.makedirs(LOG_DIR, exist_ok=True)
 
 LOG_FILE = os.path.join(LOG_DIR, "rag_assistant.log")
-DEBUG_FILE = os.path.join(LOG_DIR, "debug.log")
 
 # Get log level from environment variable (default: INFO)
 LOG_LEVEL = (os.getenv("LOG_LEVEL") or os.environ.get("LOG_LEVEL") or "INFO").upper()
@@ -68,17 +67,6 @@ logger.add(
     level=LOG_LEVEL,
     enqueue=False,
 )
-
-if LOG_LEVEL == "DEBUG":
-    logger.add(
-        DEBUG_FILE,
-        format=CONSOLE_FORMAT,
-        colorize=True,
-        rotation="5 MB",
-        retention="3 days",
-        level="DEBUG",
-        enqueue=False,
-    )
 
 # Log initialization info
 logger.debug(f"Logger initialized with LOG_LEVEL: {LOG_LEVEL}")

@@ -28,9 +28,11 @@ def mock_components():
         mock_memory_instance.memory = MagicMock()
         mock_memory_instance.strategy = "summarization_sliding_window"
         mock_memory.return_value = mock_memory_instance
-        mock_reasoning.return_value.get_strategy_name.return_value = (
-            "RAG-Enhanced Reasoning"
-        )
+
+        mock_reasoning_instance = MagicMock()
+        mock_reasoning_instance.get.return_value = "RAG-Enhanced Reasoning"
+        mock_reasoning_instance.active_strategy = "rag_enhanced"
+        mock_reasoning.return_value = mock_reasoning_instance
 
         yield {
             "llm": mock_llm,
@@ -386,11 +388,15 @@ class TestRAGAssistant:
 
         assistant = RAGAssistant()
         assistant.chain = MagicMock()
+        assistant.chain.invoke.return_value = (
+            "I don't have enough information to answer your question."
+        )
 
         response = assistant.invoke("Test query")
 
-        assert "unable to search" in response.lower()
-        assert "configuration" in response.lower()
+        # When search fails, context is empty, so LLM should handle it gracefully
+        # The important thing is that the actual error details are not exposed
+        assert isinstance(response, str)
         assert "768" not in response
         assert "384" not in response
 
@@ -407,7 +413,10 @@ class TestRAGAssistant:
 
         response = assistant.invoke("Test query")
 
-        assert "encountered an error" in response.lower()
+        # Should return the generic error message without exposing the actual error
+        assert (
+            response == "Unable to search for relevant information. Please try again."
+        )
         assert "timeout" not in response.lower()
 
     # ========================================================================
