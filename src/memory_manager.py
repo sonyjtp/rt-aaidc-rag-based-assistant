@@ -7,10 +7,10 @@ are not available.
 """
 
 from config import (
+    CHAT_HISTORY,
     DEFAULT_MAX_MESSAGES,
     DEFAULT_MEMORY_SLIDING_WINDOW_SIZE,
     DEFAULT_SUMMARY_PROMPT,
-    MEMORY_KEY_PARAM,
     MEMORY_PARAMETERS_KEY,
     MEMORY_STRATEGIES_FPATH,
     MEMORY_STRATEGY,
@@ -20,12 +20,6 @@ from logger import logger
 from simple_buffer_memory import SimpleBufferMemory
 from sliding_window_memory import SlidingWindowMemory
 from summary_memory import SummaryMemory
-
-# Make PyYAML optional to avoid import errors in lightweight environments
-try:
-    import yaml  # type: ignore
-except ImportError:  # pragma: no cover - optional dependency
-    yaml = None
 
 
 class MemoryManager:
@@ -56,7 +50,7 @@ class MemoryManager:
         """
         try:
             return load_yaml(MEMORY_STRATEGIES_FPATH).get(self.strategy, {})
-        except Exception:  # catch any error while loading/parsing the YAML
+        except Exception:  # pylint: disable=broad-exception-caught
             logger.warning("Unable to initialize memory strategy.")
             return {}
 
@@ -98,7 +92,7 @@ class MemoryManager:
             window_size = parameters.get(
                 "window_size", DEFAULT_MEMORY_SLIDING_WINDOW_SIZE
             )
-            memory_key = parameters.get("memory_key", MEMORY_KEY_PARAM)
+            memory_key = parameters.get("memory_key", CHAT_HISTORY)
             self.memory = SlidingWindowMemory(
                 llm=self.llm, window_size=window_size, memory_key=memory_key
             )
@@ -119,7 +113,7 @@ class MemoryManager:
         """
         try:
             parameters = self.config.get(MEMORY_PARAMETERS_KEY, {})
-            memory_key = parameters.get("memory_key", MEMORY_KEY_PARAM)
+            memory_key = parameters.get("memory_key", CHAT_HISTORY)
             max_messages = parameters.get("max_messages", DEFAULT_MAX_MESSAGES)
             self.memory = SimpleBufferMemory(
                 memory_key=memory_key, max_messages=max_messages
@@ -140,7 +134,7 @@ class MemoryManager:
         """
         try:
             parameters = self.config.get(MEMORY_PARAMETERS_KEY, {})
-            memory_key = parameters.get("memory_key", MEMORY_KEY_PARAM)
+            memory_key = parameters.get("memory_key", CHAT_HISTORY)
             summary_prompt = parameters.get("summary_prompt", DEFAULT_SUMMARY_PROMPT)
             self.memory = SummaryMemory(
                 llm=self.llm, memory_key=memory_key, summary_prompt=summary_prompt

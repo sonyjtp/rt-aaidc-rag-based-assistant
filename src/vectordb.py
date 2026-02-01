@@ -35,7 +35,7 @@ class VectorDB:
         self.collection = ChromaDBClient().get_or_create_collection(
             COLLECTION_NAME_DEFAULT
         )
-        logger.debug(f"Vector database collection: {self.collection.name}")
+        logger.info(f"Vector database collection: {self.collection.name}")
 
         # Initialize embedding model for document embeddings
         self.embedding_model = initialize_embedding_model()
@@ -103,7 +103,6 @@ class VectorDB:
             documents, metadatas, distances, ids, maximum_distance
         )
 
-        logger.debug(f"Search query: {query}")
         logger.debug(f"Retrieved {len(documents)} results")
 
         for doc_id, distance, metadata in zip(ids, distances, metadatas):

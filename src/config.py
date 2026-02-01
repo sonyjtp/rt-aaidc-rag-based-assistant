@@ -26,6 +26,11 @@ ERROR_NO_API_KEY = (
     "OPENAI_API_KEY, GROQ_API_KEY, or GOOGLE_API_KEY in your .env file"
 )
 
+ERROR_SEARCH_MANAGER_UNAVAILABLE = (
+    "Unable to initialize the assistant at this time. Please refresh the page "
+    "and try again. If the problem persists, please contact support."
+)
+
 
 # ============================================================================
 # LLM & MODEL CONFIGURATION
@@ -108,8 +113,8 @@ CHUNK_OVERLAP = 200  # Increased from 100 (20% overlap) for better context
 TEXT_SPLITTER_SEPARATORS = ["\n\n", "\n", ". ", " ", ""]
 
 # Retrieval Configuration
-RETRIEVAL_K = 3
-DISTANCE_THRESHOLD = 0.6
+RETRIEVAL_K = 20
+DISTANCE_THRESHOLD = 0.4
 
 
 # ============================================================================
@@ -122,8 +127,8 @@ MEMORY_STRATEGIES_FPATH = os.path.join(ROOT_DIR, "config", "memory_strategies.ya
 MEMORY_STRATEGY = "summarization_sliding_window"
 
 # Default memory strategy parameters
-DEFAULT_MEMORY_SLIDING_WINDOW_SIZE = 20
-MEMORY_KEY_PARAM = "chat_history"
+DEFAULT_MEMORY_SLIDING_WINDOW_SIZE = 10
+CHAT_HISTORY = "chat_history"
 MEMORY_PARAMETERS_KEY = "parameters"
 DEFAULT_MAX_MESSAGES = 50
 DEFAULT_SUMMARY_PROMPT = "Summarize the conversation so far in a few sentences."
@@ -139,3 +144,12 @@ REASONING_STRATEGY = "rag_enhanced_reasoning"
 # Prompt Configuration
 PROMPT_CONFIG_FPATH = os.path.join(ROOT_DIR, "config", "prompt-config.yaml")
 PROMPT_CONFIG_NAME = "rag-assistant-system-prompt-formal"
+
+# Metaquestions Configuration
+METAQUESTIONS_FPATH = os.path.join(ROOT_DIR, "config", "meta-questions.yaml")
+
+# Query Augmentation Configuration
+QUERY_AUGMENTATION_PATH = os.path.join(ROOT_DIR, "config", "query-augmentation.yaml")
+
+# Canonical message returned when the assistant cannot answer from documents
+DEFAULT_NOT_KNOWN_MSG = "I'm sorry, that information is not known to me."

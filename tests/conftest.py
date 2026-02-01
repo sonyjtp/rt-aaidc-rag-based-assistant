@@ -2,14 +2,15 @@
 Pytest configuration file for RAG Assistant tests.
 Defines fixtures, plugins, and test behavior.
 """
-# pylint: disable=import-error, unused-import, wildcard-import, unused-wildcard-import, wrong-import-position
-
 import os
 import sys
 
-# Add src directory to path BEFORE any other imports
-# This ensures that all modules can properly import from src
+# pylint: disable=import-error, unused-import, wildcard-import, unused-wildcard-import, wrong-import-position
+
+
+os.environ.setdefault("LOG_LEVEL", "WARNING")
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+
 
 from unittest.mock import MagicMock  # noqa: F401,E402
 
@@ -18,7 +19,6 @@ import pytest  # noqa: F401,E402
 # Import fixture modules so their fixtures are registered with pytest.
 # Using wildcard imports into conftest registers fixtures for pytest collection.
 # Wildcard imports are intentional here; silence lint warnings with noqa.
-from tests.fixtures.app_fixtures import *  # noqa: F401,F403,E402
 from tests.fixtures.chroma_fixtures import *  # noqa: F401,F403,E402
 from tests.fixtures.embedding_fixtures import *  # noqa: F401,F403,E402
 from tests.fixtures.file_utils_fixtures import *  # noqa: F401,F403,E402

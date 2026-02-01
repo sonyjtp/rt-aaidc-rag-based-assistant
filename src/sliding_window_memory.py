@@ -5,7 +5,7 @@ Summarizes conversation in fixed-size windows to manage token usage efficiently.
 
 from collections import deque
 
-from config import DEFAULT_MEMORY_SLIDING_WINDOW_SIZE, MEMORY_KEY_PARAM
+from config import CHAT_HISTORY, DEFAULT_MEMORY_SLIDING_WINDOW_SIZE
 from logger import logger
 
 
@@ -16,7 +16,7 @@ class SlidingWindowMemory:
         self,
         llm,
         window_size: int = DEFAULT_MEMORY_SLIDING_WINDOW_SIZE,
-        memory_key: str = MEMORY_KEY_PARAM,
+        memory_key: str = CHAT_HISTORY,
     ):
         """
         Initialize sliding window memory.

@@ -6,7 +6,12 @@ import time
 
 from langchain_core.output_parsers import StrOutputParser
 
-from config import DISTANCE_THRESHOLD, MEMORY_KEY_PARAM, RETRIEVAL_K
+from config import (
+    CHAT_HISTORY,
+    DISTANCE_THRESHOLD,
+    ERROR_SEARCH_MANAGER_UNAVAILABLE,
+    RETRIEVAL_K,
+)
 from llm_utils import initialize_llm
 from logger import logger
 from memory_manager import MemoryManager
@@ -16,7 +21,7 @@ from prompt_builder import (
     get_default_system_prompts,
 )
 from reasoning_strategy_loader import ReasoningStrategyLoader
-from vectordb import VectorDB
+from search_manager import SearchManager
 
 
 class RAGAssistant:
@@ -29,41 +34,50 @@ class RAGAssistant:
         """Initialize the RAG assistant.
         Steps:
         1. Initialize LLM
-        2. Initialize vector database for document retrieval
+        2. Initialize search manager
         3. Initialize conversation memory
         4. Initialize reasoning strategy
         5. Build prompt template and LLM chain
         """
         self.llm = None
-        self.vector_db = None
+        self.search_manager = None
         self.memory_manager = None
         self.reasoning_strategy = None
         self.prompt_template = None
         self.chain = None
 
         self._initialize_llm()
-        self._initialize_vector_db()
+        self._initialize_search_manager()
         self._initialize_memory()
         self._initialize_reasoning_strategy()
         self._build_chain()
 
     def _initialize_llm(self) -> None:
-        """Initialize the LLM."""
+        """Initialize the LLM with error handling."""
         try:
             self.llm = initialize_llm()
-            logger.info(f"LLM: {self.llm.model_name}")
+            if hasattr(self.llm, "model_name"):
+                logger.info(f"LLM: {self.llm.model_name}")
         except Exception as e:  # pylint: disable=broad-exception-caught
             logger.error(f"Error initializing LLM: {e}")
             self.llm = None
 
-    def _initialize_vector_db(self) -> None:
-        """Initialize the vector database."""
+    def _initialize_search_manager(self) -> None:
+        """Initialize the search manager with vector DB and LLM.
+
+        If the LLM is unavailable the assistant continues in degraded mode without a
+        search manager. Any initialization error is logged with its stack trace.
+        """
+        if self.llm is None:
+            logger.warning(ERROR_SEARCH_MANAGER_UNAVAILABLE)
+            self.search_manager = None
+            return
         try:
-            self.vector_db = VectorDB()
-            logger.info("Vector database  initialized.")
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            logger.error(f"Error initializing vector database: {e}")
-            self.vector_db = None
+            self.search_manager = SearchManager(self.llm)
+            logger.debug("Search manager initialized.")
+        except Exception as e:
+            logger.exception(f"Failed to initialize SearchManager: {e}")
+            raise RuntimeError(ERROR_SEARCH_MANAGER_UNAVAILABLE) from e
 
     def _initialize_memory(self) -> None:
         """Initialize conversation memory."""
@@ -119,98 +133,7 @@ class RAGAssistant:
         Args:
             documents: List of documents
         """
-        self.vector_db.add_documents(documents)
-
-    @staticmethod
-    def _flatten_search_results(search_results: dict) -> tuple[list[str], list[float]]:
-        """
-        Flatten nested search results into simple lists.
-
-        Args:
-            search_results: Raw search results from vector database
-
-        Returns:
-            Tuple of (flattened_documents, flattened_distances)
-        """
-        documents = search_results.get("documents", [])
-        distances = search_results.get("distances", [])
-
-        # Flatten documents if nested
-        if documents and isinstance(documents[0], list):
-            flat_docs = [doc for doc_list in documents for doc in doc_list]
-        else:
-            flat_docs = documents
-
-        # Flatten distances if nested
-        if distances and isinstance(distances[0], list):
-            flat_distances = [dist for dist_list in distances for dist in dist_list]
-        else:
-            flat_distances = distances
-
-        return flat_docs, flat_distances
-
-    @staticmethod
-    def _log_search_results(flat_docs: list[str], flat_distances: list[float]) -> None:
-        """
-        Log search results for debugging purposes.
-
-        Args:
-            flat_docs: Flattened list of documents
-            flat_distances: Flattened list of distances
-        """
-        # Truncate documents to first 50 chars for readability
-        truncated_docs = [
-            doc[:50] + "..." if isinstance(doc, str) and len(doc) > 50 else doc
-            for doc in flat_docs
-        ]
-        # Convert distances to similarity scores (1 - distance)
-        similarity_scores = [1 - dist for dist in flat_distances]
-        for i, (doc, sim_score) in enumerate(zip(truncated_docs, similarity_scores)):
-            logger.debug(
-                f"Retrieved Result {i + 1}: {doc}, similarity_score: {sim_score}"
-            )
-
-    def _is_context_relevant_to_query(self, query: str, context: str) -> bool:
-        """
-        Validate that retrieved context actually addresses the user's query.
-        Uses the LLM to perform semantic validation.
-
-        Args:
-            query: User's question
-            context: Retrieved document context
-
-        Returns:
-            True if context answers the query, False otherwise
-        """
-        if not context or not context.strip():
-            return False
-
-        if not self.llm:
-            logger.warning(
-                "LLM not available for context validation, assuming relevant"
-            )
-            return True
-
-        try:
-            validation_prompt = (
-                f"Does the following context contain information that directly "
-                f"addresses this question? Answer with only 'YES' or 'NO'.\n\n"
-                f"Question: {query}\n\n"
-                f"Context: {context[:500]}"  # Limit to first 500 chars for speed
-            )
-            result = self.llm.invoke(validation_prompt)
-            # Handle both string and AIMessage responses
-            result_str = str(result) if not isinstance(result, str) else result
-            # For AIMessage objects, extract content attribute
-            if hasattr(result, "content"):
-                result_str = result.content
-            is_relevant = "YES" in result_str.upper()
-            logger.debug(f"Context relevance validation: {is_relevant}")
-            return is_relevant
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            logger.warning(f"Error validating context relevance: {e}")
-            # On error, assume context is relevant to avoid false negatives
-            return True
+        self.search_manager.add_documents(documents)
 
     def _augment_query_with_context(self, query: str) -> str:
         """
@@ -228,7 +151,7 @@ class RAGAssistant:
 
         try:
             memory_vars = self.memory_manager.get_memory_variables()
-            chat_history = memory_vars.get(MEMORY_KEY_PARAM, "")
+            chat_history = memory_vars.get(CHAT_HISTORY, "")
 
             if chat_history and chat_history != "No previous conversation context.":
                 # Extract the last exchange to provide context
@@ -253,6 +176,7 @@ class RAGAssistant:
         Returns:
             String answer from the LLM based on retrieved context
         """
+        logger.debug(f"n_results: {n_results}")
         # Start timing
         start_time = time.time()
 
@@ -262,7 +186,8 @@ class RAGAssistant:
         search_query = self._augment_query_with_context(query)
 
         try:
-            search_results = self.vector_db.search(
+            # delegate search to DocumentManager
+            search_results = self.search_manager.search(
                 query=search_query,
                 n_results=n_results,
                 maximum_distance=DISTANCE_THRESHOLD,
@@ -274,8 +199,10 @@ class RAGAssistant:
                 "configuration issue. Please try again later or contact support."
             )
 
-        flat_docs, flat_distances = self._flatten_search_results(search_results)
-        self._log_search_results(flat_docs, flat_distances)
+        flat_docs, flat_distances = self.search_manager.flatten_search_results(
+            search_results
+        )
+        self.search_manager.log_search_results(flat_docs, flat_distances)
 
         context = (
             "\n".join(flat_docs)
@@ -287,7 +214,7 @@ class RAGAssistant:
         # Validate that retrieved context actually addresses the query
         # This prevents hallucinations from false positive vector matches
         if context and context.strip():
-            if not self._is_context_relevant_to_query(query, context):
+            if not self.search_manager.is_context_relevant_to_query(query, context):
                 logger.debug(f"Retrieved context not relevant to query: {query}")
                 context = ""  # Clear context to force "not known to me" response
         try:
@@ -299,7 +226,7 @@ class RAGAssistant:
             chain_inputs = {
                 "context": context,
                 "question": query,
-                MEMORY_KEY_PARAM: memory_vars.get(MEMORY_KEY_PARAM, "")
+                CHAT_HISTORY: memory_vars.get(CHAT_HISTORY, "")
                 or "No previous conversation context.",
             }
 

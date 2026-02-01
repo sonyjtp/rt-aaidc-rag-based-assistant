@@ -1,10 +1,11 @@
 """Streamlit web UI for the RAG-based AI assistant."""
+
 import os
 
 import streamlit as st
 from dotenv import load_dotenv
 
-from config import DATA_DIR, DOCUMENT_TYPES
+from config import DATA_DIR, DOCUMENT_TYPES, ERROR_SEARCH_MANAGER_UNAVAILABLE
 from file_utils import load_documents
 from logger import logger
 from rag_assistant import RAGAssistant
@@ -19,6 +20,7 @@ load_dotenv()
 # Configure page and load styles
 configure_page()
 load_custom_styles()
+
 
 # Initialize session state
 if "assistant" not in st.session_state:
@@ -46,10 +48,7 @@ if not st.session_state.initialization_attempted:
     except Exception as e:  # pylint: disable=broad-exception-caught
         st.session_state.initialized = False
         logger.error(f"Error initializing assistant: {e}")
-        st.error(
-            "Unable to initialize the assistant at this time. Please refresh the page "
-            "and try again. If the problem persists, please contact support."
-        )
+        st.error(ERROR_SEARCH_MANAGER_UNAVAILABLE)
 
 # Sidebar configuration
 with st.sidebar:
@@ -142,7 +141,7 @@ if st.session_state.initialized:
     if send_button and user_input:
         # Add user message to history
         st.session_state.chat_history.append({"role": "user", "content": user_input})
-        logger.debug(f"User question: {user_input}")
+        logger.info(f"User question: {user_input}")
 
         # Get assistant response
         status = st.status(
@@ -159,9 +158,11 @@ if st.session_state.initialized:
             # Clean up the response - remove markdown headers and separators
             lines = response.split("\n")
             cleaned_lines = []
-            skip_next = False
+            skip_next = False  # pylint: disable=invalid-name
 
-            for i, line in enumerate(lines):  # pylint: disable=unused-variable
+            for i, line in enumerate(
+                lines
+            ):  # pylint: disable=unused-variable, invalid-name
                 # Skip markdown headers (lines starting with # or **)
                 if line.strip().startswith("#") or line.strip().startswith("**"):
                     skip_next = True
@@ -180,7 +181,7 @@ if st.session_state.initialized:
             CLEANED_RESPONSE = "\n".join(
                 cleaned_lines
             ).strip()  # pylint: disable=invalid-name
-            logger.debug(f"Cleaned response: {CLEANED_RESPONSE[:100]}")
+            logger.info(f"Cleaned response: {CLEANED_RESPONSE[:100]}")
 
             st.session_state.chat_history.append(
                 {"role": "assistant", "content": CLEANED_RESPONSE}

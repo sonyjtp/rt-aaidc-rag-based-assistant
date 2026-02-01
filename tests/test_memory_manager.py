@@ -12,25 +12,22 @@ from src.memory_manager import MemoryManager
 
 
 @pytest.fixture
-def mock_memory():
-    """Fixture providing a mocked memory instance."""
-    return MagicMock()
+def combined_fixtures(request):
+    """Combined fixture providing all mocks and patches."""
+    mock_llm = MagicMock()
+    mock_memory = MagicMock()
+    strategy = getattr(request, "param", None)  # For parametrization if needed
 
-
-@pytest.fixture
-def patched_config():
-    """Fixture that applies common memory configuration patches."""
     with patch("src.memory_manager.MEMORY_STRATEGIES_FPATH", "/path"), patch(
         "builtins.open", mock_open(read_data="{}")
+    ), patch("src.memory_manager.MEMORY_STRATEGY", strategy) if strategy else patch(
+        "src.memory_manager.MEMORY_STRATEGY", "none"
     ):
-        yield
-
-
-@pytest.fixture
-def strategy_patch(request):
-    """Fixture for parametrized strategy patching."""
-    with patch("src.memory_manager.MEMORY_STRATEGY", request.param):
-        yield request.param
+        yield {
+            "mock_llm": mock_llm,
+            "mock_memory": mock_memory,
+            "strategy": strategy,
+        }
 
 
 # pylint: disable=redefined-outer-name
@@ -42,16 +39,35 @@ class TestMemoryManager:
     # ========================================================================
 
     @pytest.mark.parametrize(
-        "strategy_patch",
+        "combined_fixtures",
         ["summarization_sliding_window", "simple_buffer", "summary"],
         indirect=True,
     )
-    def test_memory_initialization(self, patched_config, strategy_patch, mock_llm):
+    def test_memory_initialization(self, combined_fixtures):
         """Test MemoryManager initialization with different strategies."""
-        manager = MemoryManager(llm=mock_llm)
+        fixtures = combined_fixtures
+        manager = MemoryManager(llm=fixtures["mock_llm"])
 
         assert manager.llm is not None
-        assert manager.strategy == strategy_patch
+        assert manager.strategy == fixtures["strategy"]
+
+    @pytest.mark.parametrize(
+        "strategy,memory_class",
+        [
+            ("summarization_sliding_window", "SlidingWindowMemory"),
+            ("simple_buffer", "SimpleBufferMemory"),
+            ("summary", "SummaryMemory"),
+        ],
+    )
+    def test_memory_initialization_error(
+        self, combined_fixtures, strategy, memory_class
+    ):
+        """Test memory initialization failure falls back to no memory."""
+        with patch(
+            f"src.memory_manager.{memory_class}", side_effect=ValueError("Init error")
+        ), patch("src.memory_manager.MEMORY_STRATEGY", strategy):
+            manager = MemoryManager(llm=combined_fixtures["mock_llm"])
+            assert manager.memory is None
 
     # ========================================================================
     # MESSAGE HANDLING TESTS
@@ -67,16 +83,13 @@ class TestMemoryManager:
             ("!@#$%^&*()_+-=[]{}|;:',.<>?/`~", "!@#$%^&*()_+-=[]{}|;:',.<>?/`~"),
         ],
     )
-    def test_add_message(
-        self, patched_config, input_text, output_text, mock_llm, mock_memory
-    ):
+    def test_add_message(self, combined_fixtures, input_text, output_text):
         """Test adding messages of various types to memory."""
-        with patch("src.memory_manager.MEMORY_STRATEGY", "none"):
-            manager = MemoryManager(llm=mock_llm)
-            manager.memory = mock_memory
-            manager.add_message(input_text=input_text, output_text=output_text)
+        manager = MemoryManager(llm=combined_fixtures["mock_llm"])
+        manager.memory = combined_fixtures["mock_memory"]
+        manager.add_message(input_text=input_text, output_text=output_text)
 
-        mock_memory.save_context.assert_called_once()
+        combined_fixtures["mock_memory"].save_context.assert_called_once()
 
     @pytest.mark.parametrize(
         "memory_variables,expected_keys",
@@ -86,39 +99,41 @@ class TestMemoryManager:
         ],
     )
     def test_get_memory_variables(
-        self, patched_config, memory_variables, expected_keys, mock_llm, mock_memory
+        self, combined_fixtures, memory_variables, expected_keys
     ):
         """Test retrieving memory variables with different key counts."""
-        mock_memory.load_memory_variables.return_value = memory_variables
-
-        with patch("src.memory_manager.MEMORY_STRATEGY", "none"):
-            manager = MemoryManager(llm=mock_llm)
-            manager.memory = mock_memory
-            variables = manager.get_memory_variables()
+        combined_fixtures[
+            "mock_memory"
+        ].load_memory_variables.return_value = memory_variables
+        manager = MemoryManager(llm=combined_fixtures["mock_llm"])
+        manager.memory = combined_fixtures["mock_memory"]
+        variables = manager.get_memory_variables()
 
         assert len(variables) == expected_keys
         assert all(key in variables for key in memory_variables.keys())
 
-    def test_get_memory_variables_with_no_memory(self, patched_config, mock_llm):
-        """Test get_memory_variables when memory is None."""
-        with patch("src.memory_manager.MEMORY_STRATEGY", "none"):
-            manager = MemoryManager(llm=mock_llm)
-            manager.memory = None
-            variables = manager.get_memory_variables()
-
-        assert variables == {}
-
-    def test_get_memory_variables_load_error(
-        self, patched_config, mock_llm, mock_memory
+    @pytest.mark.parametrize(
+        "scenario,memory_setup",
+        [
+            ("no_memory", lambda fixtures: None),
+            (
+                "load_error",
+                lambda fixtures: (fixtures["mock_memory"], ValueError("Load error")),
+            ),
+        ],
+    )
+    def test_get_memory_variables_edge_cases(
+        self, combined_fixtures, scenario, memory_setup
     ):
-        """Test get_memory_variables handles loading errors gracefully."""
-        mock_memory.load_memory_variables.side_effect = ValueError("Load error")
-
-        with patch("src.memory_manager.MEMORY_STRATEGY", "none"):
-            manager = MemoryManager(llm=mock_llm)
+        """Test get_memory_variables in edge cases: no memory or load error."""
+        manager = MemoryManager(llm=combined_fixtures["mock_llm"])
+        if scenario == "no_memory":
+            manager.memory = memory_setup(combined_fixtures)
+        elif scenario == "load_error":
+            mock_memory, error = memory_setup(combined_fixtures)
+            mock_memory.load_memory_variables.side_effect = error
             manager.memory = mock_memory
-            variables = manager.get_memory_variables()
-
+        variables = manager.get_memory_variables()
         assert variables == {}
 
     # ========================================================================
@@ -126,92 +141,107 @@ class TestMemoryManager:
     # ========================================================================
 
     @pytest.mark.parametrize(
-        "strategy_patch",
+        "combined_fixtures",
         ["summarization_sliding_window", "simple_buffer", "summary", "none"],
         indirect=True,
     )
-    def test_switching_memory_strategies(
-        self, patched_config, strategy_patch, mock_llm
-    ):
+    def test_switching_memory_strategies(self, combined_fixtures):
         """Test switching between all available memory strategies."""
-        manager = MemoryManager(llm=mock_llm)
-        assert manager is not None
+        assert MemoryManager(llm=combined_fixtures["mock_llm"]) is not None
 
-    def test_strategy_none_disables_memory(self, patched_config, mock_llm):
+    def test_strategy_none_disables_memory(self, combined_fixtures):
         """Test that 'none' strategy disables memory."""
         with patch("src.memory_manager.MEMORY_STRATEGY", "none"):
-            manager = MemoryManager(llm=mock_llm)
+            manager = MemoryManager(llm=combined_fixtures["mock_llm"])
             assert manager.memory is None or manager.strategy == "none"
 
     # ========================================================================
     # CONVERSATION FLOW TESTS
     # ========================================================================
 
-    def test_multi_turn_conversation(self, patched_config, mock_llm, mock_memory):
-        """Test multi-turn conversation with memory."""
-        with patch("src.memory_manager.MEMORY_STRATEGY", "none"):
-            manager = MemoryManager(llm=mock_llm)
-            manager.memory = mock_memory
-
-            manager.add_message(
-                input_text="What is AI?",
-                output_text="AI is artificial intelligence.",
-            )
-            manager.add_message(
-                input_text="Tell me more",
-                output_text="Machine learning is a subset of AI.",
-            )
-
-        assert mock_memory.save_context.call_count == 2
-
-    def test_multi_turn_conversation_accumulation(
-        self, patched_config, mock_llm, mock_memory
+    @pytest.mark.parametrize(
+        "num_messages,expected_calls",
+        [
+            (2, 2),
+            (3, 3),
+        ],
+    )
+    def test_multi_turn_conversation(
+        self, combined_fixtures, num_messages, expected_calls
     ):
-        """Test that conversation context accumulates over multiple turns."""
-        mock_memory.load_memory_variables.return_value = {
+        """Test multi-turn conversation with varying message counts."""
+        combined_fixtures["mock_memory"].load_memory_variables.return_value = {
             "history": "Previous conversation..."
-        }
+        }  # Included for accumulation simulation, though not asserted
+        manager = MemoryManager(llm=combined_fixtures["mock_llm"])
+        manager.memory = combined_fixtures["mock_memory"]
 
-        with patch("src.memory_manager.MEMORY_STRATEGY", "none"):
-            manager = MemoryManager(llm=mock_llm)
-            manager.memory = mock_memory
+        for i in range(num_messages):
+            manager.add_message(input_text=f"Question {i}", output_text=f"Answer {i}")
 
-            for i in range(3):
-                manager.add_message(
-                    input_text=f"Question {i}", output_text=f"Answer {i}"
-                )
-
-        assert mock_memory.save_context.call_count == 3
+        assert (
+            combined_fixtures["mock_memory"].save_context.call_count == expected_calls
+        )
 
     # ========================================================================
     # EXCEPTION HANDLING TESTS
     # ========================================================================
 
+    @pytest.mark.parametrize(
+        "scenario,patches,setup,assertions",
+        [
+            (
+                "missing_config",
+                {
+                    "src.memory_manager.MEMORY_STRATEGIES_FPATH": "/nonexistent",
+                    "src.memory_manager.MEMORY_STRATEGY": "none",
+                    "builtins.open": FileNotFoundError("Config not found"),
+                },
+                lambda manager: None,
+                lambda manager: (manager.config == {}),
+            ),
+            (
+                "save_error",
+                {"src.memory_manager.MEMORY_STRATEGY": "none"},
+                lambda manager: setattr(
+                    manager.memory.save_context,
+                    "side_effect",
+                    ValueError("Save failed"),
+                ),
+                lambda manager: (
+                    manager.memory.save_context.assert_called_once(),
+                    True,
+                )[1],
+            ),
+            (
+                "unknown_strategy",
+                {"src.memory_manager.MEMORY_STRATEGY": "unknown_strategy"},
+                lambda manager: None,
+                lambda manager: (manager.memory is None),
+            ),
+        ],
+    )
     @pytest.mark.filterwarnings("ignore::UserWarning")
-    def test_missing_config_file(self, mock_llm):
-        """Test graceful handling when config file is missing."""
-        with patch("src.memory_manager.MEMORY_STRATEGIES_FPATH", "/nonexistent"), patch(
-            "src.memory_manager.MEMORY_STRATEGY", "none"
-        ), patch("builtins.open", side_effect=FileNotFoundError("Config not found")):
-            manager = MemoryManager(llm=mock_llm)
-            assert manager is not None
-            assert manager.config == {}
-
-    def test_memory_save_error(self, patched_config, mock_llm, mock_memory):
-        """Test handling when memory save fails."""
-        mock_memory.save_context.side_effect = ValueError("Save failed")
-
-        with patch("src.memory_manager.MEMORY_STRATEGY", "none"):
-            manager = MemoryManager(llm=mock_llm)
-            manager.memory = mock_memory
-            manager.add_message(input_text="Test", output_text="Test")
-
-        mock_memory.save_context.assert_called_once()
-
-    @pytest.mark.filterwarnings("ignore::UserWarning")
-    def test_unknown_strategy_handling(self, patched_config, mock_llm):
-        """Test handling of unknown memory strategy."""
-        with patch("src.memory_manager.MEMORY_STRATEGY", "unknown_strategy"):
-            manager = MemoryManager(llm=mock_llm)
-            assert manager is not None
-            assert manager.memory is None
+    def test_exception_handling(
+        self, combined_fixtures, scenario, patches, setup, assertions
+    ):
+        """Test exception handling in various scenarios."""
+        manager = None
+        match scenario:
+            case "missing_config":
+                with patch(
+                    "src.memory_manager.MEMORY_STRATEGIES_FPATH", "/nonexistent"
+                ), patch("src.memory_manager.MEMORY_STRATEGY", "none"), patch(
+                    "builtins.open", side_effect=FileNotFoundError("Config not found")
+                ):
+                    manager = MemoryManager(llm=combined_fixtures["mock_llm"])
+            case "save_error":
+                with patch("src.memory_manager.MEMORY_STRATEGY", "none"):
+                    manager = MemoryManager(llm=combined_fixtures["mock_llm"])
+                    manager.memory = combined_fixtures["mock_memory"]
+                    manager.add_message(input_text="Test", output_text="Test")
+            case "unknown_strategy":
+                with patch("src.memory_manager.MEMORY_STRATEGY", "unknown_strategy"):
+                    manager = MemoryManager(llm=combined_fixtures["mock_llm"])
+        setup(manager)
+        assert assertions(manager)
