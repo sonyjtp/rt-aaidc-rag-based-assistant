@@ -1,4 +1,7 @@
-import chromadb
+"""
+Diagnostics script to verify ChromaDB connection and perform basic queries. Use this to
+ensure that the ChromaDB instance is reachable and functioning as expected.
+"""
 
 from chroma_client import ChromaDBClient
 from config import COLLECTION_NAME_DEFAULT
