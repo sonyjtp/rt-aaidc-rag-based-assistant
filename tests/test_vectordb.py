@@ -258,7 +258,7 @@ class TestVectorDB:
         # Handle pagination - empty database
         mocks["collection"].get.side_effect = [
             {"documents": []},  # First call
-            {"documents": []},  # Second call (offset=300)
+            {"documents": []},  # Second call (offset=300) - end pagination
         ]
         mocks["collection"].count.return_value = 0
         mocks["embedding_model"].embed_documents.return_value = [[0.1, 0.2]]
@@ -581,3 +581,129 @@ class TestVectorDB:
 
         assert len(docs) == 1
         assert docs == ["doc1"]
+
+    def test_add_documents_empty_list(self, patched_vectordb):
+        """Test add_documents with empty list - should return early."""
+        vdb, mocks = patched_vectordb
+
+        # Should return early without calling insert
+        vdb.add_documents([])
+
+        mocks["collection"].add.assert_not_called()
+
+    def test_filter_duplicate_chunks_exception_handling(self, vectordb_mocks):
+        """Test _filter_duplicate_chunks handles exceptions during batch fetching."""
+        with patch("src.vectordb.ChromaDBClient") as mock_chroma:
+            mock_chroma.return_value = vectordb_mocks["chroma_instance"]
+            mock_collection = vectordb_mocks["collection"]
+
+            # First call succeeds, second call raises exception
+            mock_collection.get.side_effect = [
+                {"documents": ["chunk1"]},  # First call succeeds
+                RuntimeError("Batch fetch failed"),  # Second call fails
+            ]
+
+            vdb = VectorDB()
+            chunks = [
+                ("chunk1", {"title": "doc1"}),
+                ("chunk2", {"title": "doc2"}),
+            ]
+
+            # Should handle exception and return filtered chunks from first batch
+            filtered = vdb._filter_duplicate_chunks(chunks)
+
+            # Should have filtered chunk2 (not chunk1 since it was in first batch)
+            assert len(filtered) == 1
+            assert filtered[0][0] == "chunk2"
+
+    def test_filter_existing_documents_exception_handling(self, vectordb_mocks):
+        """Test _filter_existing_documents handles exceptions gracefully."""
+        with patch("src.vectordb.ChromaDBClient") as mock_chroma:
+            mock_chroma.return_value = vectordb_mocks["chroma_instance"]
+            mock_collection = vectordb_mocks["collection"]
+
+            # Mock collection.get() to raise an exception
+            mock_collection.get.side_effect = RuntimeError("DB error")
+
+            vdb = VectorDB()
+            documents = [
+                {"content": "test", "filename": "test.txt", "title": "Test"},
+                "Raw string document",
+            ]
+
+            # Should catch exception and return all documents
+            result = vdb._filter_existing_documents(documents)
+
+            assert len(result) == 2
+            assert result == documents
+
+    def test_filter_existing_documents_with_existing_files(self, vectordb_mocks):
+        """Test _filter_existing_documents filters out existing files."""
+        with patch("src.vectordb.ChromaDBClient") as mock_chroma:
+            mock_chroma.return_value = vectordb_mocks["chroma_instance"]
+            mock_collection = vectordb_mocks["collection"]
+
+            # Mock existing documents in database
+            mock_collection.get.return_value = {
+                "metadatas": [
+                    {"filename": "existing1.txt"},
+                    {"filename": "existing2.txt"},
+                ]
+            }
+
+            vdb = VectorDB()
+            documents = [
+                {"content": "old", "filename": "existing1.txt", "title": "Old"},
+                {"content": "new", "filename": "new.txt", "title": "New"},
+                "Raw string",
+            ]
+
+            result = vdb._filter_existing_documents(documents)
+
+            # Should filter out existing1.txt, keep new.txt and raw string
+            assert len(result) == 2
+            assert any(d.get("filename") == "new.txt" for d in result if isinstance(d, dict))
+
+    def test_filter_existing_documents_no_existing_files(self, vectordb_mocks):
+        """Test _filter_existing_documents when database is empty."""
+        with patch("src.vectordb.ChromaDBClient") as mock_chroma:
+            mock_chroma.return_value = vectordb_mocks["chroma_instance"]
+            mock_collection = vectordb_mocks["collection"]
+
+            # Mock empty database
+            mock_collection.get.return_value = {"metadatas": []}
+
+            vdb = VectorDB()
+            documents = [
+                {"content": "new1", "filename": "new1.txt", "title": "New1"},
+                {"content": "new2", "filename": "new2.txt", "title": "New2"},
+            ]
+
+            result = vdb._filter_existing_documents(documents)
+
+            # Should return all documents
+            assert len(result) == 2
+            assert result == documents
+
+    def test_filter_existing_documents_mixed_string_and_dict(self, vectordb_mocks):
+        """Test _filter_existing_documents with mixed string and dict documents."""
+        with patch("src.vectordb.ChromaDBClient") as mock_chroma:
+            mock_chroma.return_value = vectordb_mocks["chroma_instance"]
+            mock_collection = vectordb_mocks["collection"]
+
+            mock_collection.get.return_value = {"metadatas": [{"filename": "existing.txt"}]}
+
+            vdb = VectorDB()
+            documents = [
+                "String doc 1",
+                {"content": "existing", "filename": "existing.txt"},
+                "String doc 2",
+                {"content": "new", "filename": "new.txt"},
+            ]
+
+            result = vdb._filter_existing_documents(documents)
+
+            # Should keep all strings, new dict, and filter out existing dict
+            assert len(result) == 3
+            string_count = sum(1 for d in result if isinstance(d, str))
+            assert string_count == 2
