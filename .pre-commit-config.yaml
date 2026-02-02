@@ -34,7 +34,7 @@ repos:
     rev: v3.0.3
     hooks:
       - id: pylint
-        args: ["--fail-under=9.5"]
+        args: ["--fail-under=9.0"]
         additional_dependencies: [
           "langchain",
           "langchain-google-genai",

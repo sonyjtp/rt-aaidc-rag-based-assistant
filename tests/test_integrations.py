@@ -8,6 +8,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from config import (
+    CHROMA_COLLECTION_METADATA,
+    COLLECTION_NAME_DEFAULT,
+    DISTANCE_THRESHOLD,
+    RETRIEVAL_K,
+    VECTOR_DB_EMBEDDING_MODEL,
+)
 from src.chroma_client import ChromaDBClient
 from src.llm_utils import initialize_llm
 from tests.fixtures.chroma_fixtures import chroma_env_patch
@@ -38,7 +45,6 @@ class TestChromaDBClientInitialization:
         """Test ChromaDB client initialization with environment variables."""
         client = ChromaDBClient()
 
-        # Verify CloudClient was created with correct parameters
         chroma_mocks["cloud_client"].assert_called_once_with(
             api_key="test-key", tenant="test-tenant", database="test-db"
         )
@@ -52,31 +58,34 @@ class TestChromaDBClientInitialization:
         """Test _initialize_client method creates CloudClient correctly."""
         client = ChromaDBClient()
 
-        # Verify _initialize_client was called during __init__
         assert chroma_mocks["cloud_client"].called
-        # Verify the returned client is the mocked instance
         assert client.client is chroma_mocks["client_instance"]
+
+    @chroma_env_patch()
+    def test_init_initializes_embedding_function(self, chroma_mocks):
+        """Test that __init__ initializes the embedding function with correct model."""
+        with patch("src.chroma_client.embedding_functions.SentenceTransformerEmbeddingFunction") as mock_embedding_fn:
+            mock_embedding_instance = MagicMock()
+            mock_embedding_fn.return_value = mock_embedding_instance
+
+            client = ChromaDBClient()
+
+            mock_embedding_fn.assert_called_once_with(model_name=VECTOR_DB_EMBEDDING_MODEL)
+            assert client.embedding_function is mock_embedding_instance
 
     @chroma_env_patch()
     def test_get_or_create_collection(self, chroma_mocks):
         """Test getting or creating a ChromaDB collection."""
         mock_collection = MagicMock()
-        chroma_mocks[
-            "client_instance"
-        ].get_or_create_collection.return_value = mock_collection
+        chroma_mocks["client_instance"].get_or_create_collection.return_value = mock_collection
 
         client = ChromaDBClient()
         result = client.get_or_create_collection("test_collection")
 
-        # Verify get_or_create_collection was called with correct parameters
-        chroma_mocks[
-            "client_instance"
-        ].get_or_create_collection.assert_called_once_with(
+        chroma_mocks["client_instance"].get_or_create_collection.assert_called_once_with(
             name="test_collection",
-            metadata={
-                "hnsw:space": "cosine",
-                "description": "RAG document collection",
-            },
+            metadata=CHROMA_COLLECTION_METADATA,
+            embedding_function=client.embedding_function,
         )
         assert result == mock_collection
 
@@ -86,24 +95,221 @@ class TestChromaDBClientInitialization:
         client = ChromaDBClient()
         client.delete_collection("test_collection")
 
-        # Verify delete_collection was called with correct parameters
-        chroma_mocks["client_instance"].delete_collection.assert_called_once_with(
-            name="test_collection"
-        )
+        chroma_mocks["client_instance"].delete_collection.assert_called_once_with(name="test_collection")
 
-    @patch.dict("os.environ", {}, clear=True)
+    @chroma_env_patch()
+    @pytest.mark.parametrize(
+        "query_response, expected_ids, expected_distances",
+        [
+            pytest.param(
+                {
+                    "ids": [["id1", "id2", "id3"]],
+                    "distances": [
+                        [
+                            DISTANCE_THRESHOLD - 0.9,
+                            DISTANCE_THRESHOLD - 0.1,
+                            DISTANCE_THRESHOLD + 0.5,
+                        ]
+                    ],
+                    "metadatas": [[{}, {}, {}]],
+                },
+                ["id1", "id2"],
+                [DISTANCE_THRESHOLD - 0.9, DISTANCE_THRESHOLD - 0.1],
+                id="partial_results_pass_distance_filter",
+            ),
+            pytest.param(
+                {
+                    "ids": [["id1", "id2"]],
+                    "distances": [[DISTANCE_THRESHOLD + 0.5, DISTANCE_THRESHOLD + 1.0]],
+                    "metadatas": [[{}, {}]],
+                },
+                [],
+                [],
+                id="all_results_exceed_threshold",
+            ),
+            pytest.param(
+                {
+                    "ids": [[]],
+                    "distances": [[]],
+                    "metadatas": [[]],
+                },
+                [],
+                [],
+                id="empty_query_results",
+            ),
+        ],
+    )
+    def test_query_collection_distance_filtering(self, chroma_mocks, query_response, expected_ids, expected_distances):
+        """Parameterized test for distance threshold filtering using DISTANCE_THRESHOLD from config.
+
+        Test data uses DISTANCE_THRESHOLD +/- offsets so tests adapt automatically if
+        DISTANCE_THRESHOLD changes in config.py without requiring test updates.
+        """
+        mock_collection = MagicMock()
+        mock_collection.query.return_value = query_response
+        chroma_mocks["client_instance"].get_collection.return_value = mock_collection
+
+        with patch("src.chroma_client.embedding_functions.SentenceTransformerEmbeddingFunction"):
+            client = ChromaDBClient()
+            result = client.query_collection(query_texts="test query", maximum_distance=DISTANCE_THRESHOLD)
+
+        assert result["ids"] == expected_ids, f"Expected ids {expected_ids}, got {result['ids']}"
+        assert (
+            result["distances"] == expected_distances
+        ), f"Expected distances {expected_distances}, got {result['distances']}"
+
+    @chroma_env_patch()
+    @pytest.mark.parametrize(
+        "query_texts, where_clause, collection_name, n_results",
+        [
+            pytest.param(
+                "single query string",
+                None,
+                None,
+                None,
+                id="string_query_text_default_params",
+            ),
+            pytest.param(
+                ["query1", "query2"],
+                None,
+                None,
+                None,
+                id="list_query_texts_default_params",
+            ),
+            pytest.param(
+                "test query",
+                {"source": {"$eq": "doc1"}},
+                None,
+                None,
+                id="with_where_filter_clause",
+            ),
+            pytest.param(
+                "test query",
+                None,
+                "custom_collection",
+                None,
+                id="with_custom_collection_name",
+            ),
+            pytest.param("test query", None, None, 10, id="with_custom_n_results_parameter"),
+        ],
+    )
+    def test_query_collection_parameter_passing(
+        self, chroma_mocks, query_texts, where_clause, collection_name, n_results
+    ):
+        """Parameterized test for parameter passing to ChromaDB methods."""
+        # Mock the embedding function to avoid initialization issues
+        with patch("src.chroma_client.embedding_functions.SentenceTransformerEmbeddingFunction"):
+            mock_collection = MagicMock()
+            mock_collection.query.return_value = {
+                "ids": [["id1"]],
+                "distances": [[0.2]],
+                "metadatas": [[]],
+            }
+            chroma_mocks["client_instance"].get_collection.return_value = mock_collection
+
+            client = ChromaDBClient()
+
+            # Call with specified parameters
+            client.query_collection(
+                query_texts=query_texts,
+                where=where_clause,
+                collection_name=collection_name,
+                n_results=n_results,
+            )
+
+            # Verify parameters were passed correctly
+            if collection_name:
+                call_kwargs = chroma_mocks["client_instance"].get_collection.call_args.kwargs
+                assert call_kwargs["name"] == collection_name
+
+            query_call_kwargs = mock_collection.query.call_args.kwargs
+            assert query_call_kwargs["query_texts"] == query_texts
+
+            if where_clause is not None:
+                assert query_call_kwargs["where"] == where_clause
+
+            if n_results is not None:
+                assert query_call_kwargs["n_results"] == n_results
+
+    @chroma_env_patch()
+    def test_query_collection_embedding_function_integration(self, chroma_mocks):
+        """Test that embedding_function is properly integrated with get_collection."""
+        with patch("src.chroma_client.embedding_functions.SentenceTransformerEmbeddingFunction"):
+            mock_collection = MagicMock()
+            mock_collection.query.return_value = {
+                "ids": [["id1"]],
+                "distances": [[0.1]],
+                "metadatas": [[]],
+            }
+            chroma_mocks["client_instance"].get_collection.return_value = mock_collection
+
+            client = ChromaDBClient()
+            client.query_collection(query_texts="test")
+
+            # Verify embedding_function was passed to get_collection
+            call_kwargs = chroma_mocks["client_instance"].get_collection.call_args.kwargs
+            assert "embedding_function" in call_kwargs
+            assert call_kwargs["embedding_function"] == client.embedding_function
+
+    @chroma_env_patch()
+    def test_query_collection_default_values(self, chroma_mocks):
+        """Test that query_collection uses correct default parameter values."""
+        with patch("src.chroma_client.embedding_functions.SentenceTransformerEmbeddingFunction"):
+            mock_collection = MagicMock()
+            mock_collection.query.return_value = {
+                "ids": [["id1"]],
+                "distances": [[0.1]],
+                "metadatas": [[]],
+            }
+            chroma_mocks["client_instance"].get_collection.return_value = mock_collection
+
+            client = ChromaDBClient()
+
+            # Call with minimal parameters (using all defaults)
+            client.query_collection()
+
+            # Verify collection defaults
+            get_collection_kwargs = chroma_mocks["client_instance"].get_collection.call_args.kwargs
+            assert get_collection_kwargs["name"] == COLLECTION_NAME_DEFAULT
+
+            # Verify query defaults
+            query_kwargs = mock_collection.query.call_args.kwargs
+            assert query_kwargs["n_results"] == RETRIEVAL_K
+            assert query_kwargs["query_texts"] == ""
+            assert query_kwargs["where"] is None
+
     def test_chroma_client_missing_env_vars(self, chroma_mocks):
         """Test ChromaDB client handles missing environment variables."""
-        client = ChromaDBClient()
+        # Explicitly clear env vars to simulate missing configuration
+        with patch.dict("os.environ", {}, clear=True), patch(
+            "src.chroma_client.embedding_functions.SentenceTransformerEmbeddingFunction"
+        ):
+            client = ChromaDBClient()
 
-        # Should create client even with None values
-        assert client.api_key is None
-        assert client.tenant is None
-        assert client.database is None
-        # But should still call CloudClient with None values
-        chroma_mocks["cloud_client"].assert_called_once_with(
-            api_key=None, tenant=None, database=None
-        )
+            # Should create client even with None values
+            assert client.api_key is None
+            assert client.tenant is None
+            assert client.database is None
+            # But should still call CloudClient with None values
+            chroma_mocks["cloud_client"].assert_called_once_with(api_key=None, tenant=None, database=None)
+
+    @chroma_env_patch()
+    def test_init_sets_all_attributes(self, chroma_mocks):
+        """Test that __init__ properly sets all instance attributes."""
+        with patch("src.chroma_client.embedding_functions.SentenceTransformerEmbeddingFunction") as mock_embedding_fn:
+            mock_embedding_instance = MagicMock()
+            mock_embedding_fn.return_value = mock_embedding_instance
+
+            client = ChromaDBClient()
+
+            # Verify all attributes are set after initialization
+            assert client.api_key == "test-key"
+            assert client.tenant == "test-tenant"
+            assert client.database == "test-db"
+            assert client.embedding_function is mock_embedding_instance
+            assert client.client is chroma_mocks["client_instance"]
+            # Verify client is not None (successfully initialized)
+            assert client.client is not None
 
 
 # ============================================================================
@@ -147,26 +353,53 @@ class TestLLMInitialization:
             ("OPENAI_API_KEY", "openai-key", "OPENAI_MODEL", "gpt-4o-mini"),
         ],
     )
-    def test_initialize_llm_with_provider(
-        self, api_key_env, api_key_value, model_env, default_model
-    ):
+    def test_initialize_llm_with_provider(self, api_key_env, api_key_value, model_env, default_model):
         """Parametrized test for LLM initialization with different providers."""
-        env_dict, provider_list = create_llm_provider_config(
-            api_key_env, api_key_value, model_env, default_model
-        )
+        env_dict, provider_list = create_llm_provider_config(api_key_env, api_key_value, model_env, default_model)
 
-        with patch.dict("os.environ", env_dict), patch(
-            "src.llm_utils.LLM_PROVIDERS", provider_list
-        ):
+        with patch.dict("os.environ", env_dict), patch("src.llm_utils.LLM_PROVIDERS", provider_list):
             llm = initialize_llm()
             assert llm is not None
 
-    @patch.dict("os.environ", {}, clear=True)
-    @patch("src.llm_utils.LLM_PROVIDERS", [])
-    def test_initialize_llm_no_api_keys(self):
-        """Test LLM initialization fails when no API keys available."""
-        with pytest.raises(ValueError):
-            initialize_llm()
+    @pytest.mark.parametrize(
+        "env_vars,providers,expected_error",
+        [
+            pytest.param({}, [], RuntimeError, id="empty_providers"),
+            pytest.param(
+                {},
+                [
+                    {
+                        "api_key_env": "TEST_API_KEY",
+                        "api_key_param": "api_key",
+                        "model_env": "TEST_MODEL",
+                        "default_model": "test-model",
+                        "class": MagicMock(),
+                    }
+                ],
+                ValueError,
+                id="missing_api_key",
+            ),
+            pytest.param(
+                {"TEST_API_KEY": ""},
+                [
+                    {
+                        "api_key_env": "TEST_API_KEY",
+                        "api_key_param": "api_key",
+                        "model_env": "TEST_MODEL",
+                        "default_model": "test-model",
+                        "class": MagicMock(),
+                    }
+                ],
+                ValueError,
+                id="empty_api_key",
+            ),
+        ],
+    )
+    def test_initialize_llm_raises_errors(self, env_vars, providers, expected_error):
+        """Test LLM initialization raises ValueError for null API keys and RuntimeError for empty providers."""
+        with patch.dict("os.environ", env_vars, clear=True), patch("src.llm_utils.LLM_PROVIDERS", providers):
+            with pytest.raises(expected_error):
+                initialize_llm()
 
     @patch.dict(
         "os.environ",
@@ -276,9 +509,7 @@ class TestLLMInstantiationIntegration:
 
         # Verify the flow
         assert llm is not None
-        mock_provider_class.assert_called_once_with(
-            api_key="test-key-123", model_name="test-model-v2"
-        )
+        mock_provider_class.assert_called_once_with(api_key="test-key-123", model_name="test-model-v2")
 
     @patch.dict("os.environ", {"ACTUAL_LLM_API_KEY": "real-api-key"})
     def test_llm_with_real_environment_values(self):
@@ -302,9 +533,7 @@ class TestLLMInstantiationIntegration:
         instance = mock_llm_class(api_key="real-api-key", model_name="test-model")
 
         # Verify correct values were passed
-        mock_llm_class.assert_called_once_with(
-            api_key="real-api-key", model_name="test-model"
-        )
+        mock_llm_class.assert_called_once_with(api_key="real-api-key", model_name="test-model")
         assert instance is not None
 
     def test_llm_class_instantiation_error_handling(self):
@@ -337,8 +566,3 @@ class TestLLMInstantiationIntegration:
         assert len(batch_responses) == 2  # type: ignore
         assert batch_responses[0] == "response1"  # type: ignore
         assert batch_responses[1] == "response2"  # type: ignore
-
-
-# ============================================================================
-# END OF TESTS
-# ============================================================================

@@ -1,13 +1,20 @@
-from pathlib import Path
+"""Handles meta questions about the assistant itself."""
 import re
-import yaml
+from pathlib import Path
 from typing import List, Optional, Tuple
 
-from config import METAQUESTIONS_FPATH, PROMPT_CONFIG_FPATH, DEFAULT_NOT_KNOWN_MSG
+from config import METAQUESTIONS_FPATH, PROMPT_CONFIG_FPATH
+from error_messages import DEFAULT_NOT_KNOWN_ERROR_MESSAGE
+from file_utils import load_yaml
+from logger import logger
+from readme_extractor import ReadmeExtractor
 
 
+# pylint: disable=too-few-public-methods
 class MetaPattern:
-    def __init__(self, pattern: str, kind: str, response: str):
+    """Represents a meta question pattern."""
+
+    def __init__(self, pattern: str, kind: str, response: str = "", response_type: str = ""):
         self.pattern = pattern
         try:
             self.rx = re.compile(pattern, re.IGNORECASE)
@@ -16,9 +23,12 @@ class MetaPattern:
             self.rx = re.compile(re.escape(pattern), re.IGNORECASE)
         self.kind = kind
         self.response = response
+        self.response_type = response_type  # For readme_extract patterns
 
 
 class PersonaHandler:
+    """Handles meta questions about the assistant itself."""
+
     def __init__(self, config_path: Optional[str] = None):
         cfg_path = Path(config_path) if config_path else None
         meta_cfg_primary = Path(METAQUESTIONS_FPATH)
@@ -32,50 +42,97 @@ class PersonaHandler:
 
         self.patterns: List[MetaPattern] = []
         self.allow_self_description = True
-        self.default_meta_refusal = DEFAULT_NOT_KNOWN_MSG
+        self.default_meta_refusal = DEFAULT_NOT_KNOWN_ERROR_MESSAGE
+
+        # Initialize README extractor for dynamic content
+        try:
+            self.readme_extractor = ReadmeExtractor()
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logger.warning(f"Could not initialize README extractor: {e}")
+            self.readme_extractor = None
+
         self._load()
 
     def _load(self):
         if not self.cfg_path.exists():
             return
         try:
-            data = yaml.safe_load(self.cfg_path.read_text()) or {}
-        except Exception:
+            data = load_yaml(self.cfg_path) or {}
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logger.warning(f"Failed to load config from {self.cfg_path}: {e}")
             return
         meta_questions = data.get("meta_questions", [])
         for item in meta_questions:
             pattern = item.get("pattern", "")
             kind = item.get("kind", "refuse")
             response = item.get("response", "")
-            self.patterns.append(MetaPattern(pattern, kind, response))
+            response_type = item.get("response_type", "")
+            self.patterns.append(MetaPattern(pattern, kind, response, response_type))
         self.allow_self_description = bool(data.get("allow_self_description", True))
         self.default_meta_refusal = data.get("default_meta_refusal", self.default_meta_refusal)
 
-    def is_meta_question(self, query: str) -> Optional[Tuple[str, str]]:
-        """Return (kind, response) if query matches a meta pattern, else None."""
+    def is_meta_question(self, query: str) -> Optional[Tuple[str, str, str]]:
+        """Return (kind, response, response_type) if query matches a meta pattern, else None."""
         if not query:
             return None
         for p in self.patterns:
             if p.rx.search(query):
-                return p.kind, p.response or self.default_meta_refusal
-        # simple heuristic: if mentions 'your' or 'you' and 'know' / 'can' / 'capability'
-        q = query.lower()
-        has_you_reference = "you" in q or "your" in q
-        has_capability_words = any(k in q for k in ("know", "can", "capab", "limit", "what do you", "capabilities"))
-        if has_you_reference and has_capability_words:
-            return "describe", self.patterns[0].response if self.patterns else self.default_meta_refusal
+                return p.kind, p.response or self.default_meta_refusal, p.response_type
+
         return None
 
     def handle_meta_question(self, query: str) -> Optional[str]:
+        """Handle meta question if detected."""
+
         m = self.is_meta_question(query)
         if not m:
             return None
-        kind, response = m
+        kind, response, response_type = m
+
         if kind == "sensitive":
             return self.default_meta_refusal
+
         if kind == "describe":
             if self.allow_self_description:
                 return response
             return self.default_meta_refusal
+
+        if kind == "readme_extract":
+            return self._get_readme_content(response_type)
+
         # default: refusal
         return self.default_meta_refusal
+
+    def _get_readme_content(self, response_type: str) -> str:
+        """Extract README content based on response_type.
+
+        Args:
+            response_type: Type of content to extract (tools_and_models, overview, etc.)
+
+        Returns:
+            Extracted README content or default error message
+        """
+        if not self.readme_extractor:
+            logger.warning("README extractor not available")
+            return "I couldn't access the documentation. Please try a different question."
+
+        try:
+            match response_type:
+                case "tools_and_models":
+                    return self.readme_extractor.get_tools_and_models()
+                case "overview":
+                    return self.readme_extractor.get_overview()
+                case "architecture":
+                    return self.readme_extractor.get_architecture()
+                case "customization":
+                    return self.readme_extractor.get_customization()
+                case "quick_start":
+                    return self.readme_extractor.get_quick_start()
+                case "features":
+                    return self.readme_extractor.get_features()
+                case _:
+                    logger.warning(f"Unknown response_type: {response_type}")
+                    return "I couldn't find that information in the documentation."
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logger.error(f"Error extracting README content: {e}")
+            return "I encountered an error while accessing the documentation. Please try again."

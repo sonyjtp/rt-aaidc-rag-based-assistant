@@ -1,10 +1,8 @@
 """Query processing and context management for RAG assistant."""
 
-from typing import Optional
-
 import config as config_mod
 import file_utils as file_utils_mod
-import src.logger as logger_mod
+import logger as logger_mod
 
 # Re-export constants for backwards compatibility within this module
 DISTANCE_THRESHOLD = config_mod.DISTANCE_THRESHOLD
@@ -73,10 +71,10 @@ class QueryProcessor:
                 if is_follow_up:
                     # For follow-ups, include only the last user question to avoid biasing search
                     # Extract the last user message from chat history
-                    lines = chat_history.strip().split('\n')
+                    lines = chat_history.strip().split("\n")
                     last_user_question = None
                     for line in reversed(lines):
-                        if line.startswith('Human: '):
+                        if line.startswith("Human: "):
                             last_user_question = line[7:].strip()  # Remove 'Human: ' prefix
                             break
 
@@ -84,11 +82,11 @@ class QueryProcessor:
                         augmented_query = f"Previous question: {last_user_question}\n\nCurrent question: {query}"
                         logger.debug("Query augmented with last user question for follow-up")
                         return augmented_query
-                    else:
-                        # Fallback to full context if we can't extract
-                        augmented_query = f"{chat_history}\n\nCurrent question: {query}"
-                        logger.debug("Query augmented with full chat history context (fallback)")
-                        return augmented_query
+
+                    # Fallback to full context if we can't extract
+                    augmented_query = f"{chat_history}\n\nCurrent question: {query}"
+                    logger.debug("Query augmented with full chat history context (fallback)")
+                    return augmented_query
 
                 # Default: treat as new topic for clean search
                 logger.debug("Query treated as new topic - using original query for clean search")
@@ -131,9 +129,7 @@ class QueryProcessor:
             return False
 
         if not self.llm:
-            logger.warning(
-                "LLM not available for context validation, assuming relevant"
-            )
+            logger.warning("LLM not available for context validation, assuming relevant")
             return True
 
         try:

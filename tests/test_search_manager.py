@@ -9,9 +9,7 @@ from src.search_manager import SearchManager
 
 @pytest.fixture
 def mock_components(mock_logger):
-    with patch("src.search_manager.VectorDB") as mock_vector_db_cls, patch(
-        "src.search_manager.logger", mock_logger
-    ):
+    with patch("src.search_manager.VectorDB") as mock_vector_db_cls, patch("src.search_manager.logger", mock_logger):
         mock_vector_db_mock = MagicMock(name="VectorDBInstance")
         mock_vector_db_cls.return_value = mock_vector_db_mock
         llm_mock = MagicMock(name="LLM")
@@ -50,18 +48,20 @@ class TestSearchManager:  # pylint: disable=redefined-outer-name
     @pytest.mark.parametrize(
         "llm_value, vector_db_side_effect, expected_error",
         [
-            (None, None, "SearchManager: LLM initialization failed"),  # missing llm
+            (
+                None,
+                None,
+                "Unable to initialize the assistant",
+            ),  # missing llm - user-facing message
             (
                 MagicMock(name="LLM"),
                 Exception("db fail"),
-                "SearchManager: LLM initialization failed",
+                "Unable to initialize the assistant",
             ),
-            # VectorDB ctor fails
+            # VectorDB ctor fails - user-facing message
         ],
     )
-    def test_init_failure_modes(
-        self, monkeypatch, llm_value, vector_db_side_effect, expected_error
-    ):
+    def test_init_failure_modes(self, monkeypatch, llm_value, vector_db_side_effect, expected_error):
         """Test SearchManager initialization failure modes."""
 
         if vector_db_side_effect is not None:
@@ -72,9 +72,7 @@ class TestSearchManager:  # pylint: disable=redefined-outer-name
             monkeypatch.setattr("src.search_manager.VectorDB", bad_ctor)
         else:
             # happy constructor when we only test missing llm
-            monkeypatch.setattr(
-                "src.search_manager.VectorDB", lambda: MagicMock(name="VectorDB")
-            )
+            monkeypatch.setattr("src.search_manager.VectorDB", lambda: MagicMock(name="VectorDB"))
 
         with pytest.raises(RuntimeError) as exc:
             SearchManager(llm_value)
@@ -131,9 +129,7 @@ class TestSearchManager:  # pylint: disable=redefined-outer-name
 
         res = mgr.search("query", n_results=1, maximum_distance=0.5)
         assert res == {"documents": ["d"], "distances": [0.1]}
-        vector_db_mock.search.assert_called_once_with(
-            query="query", n_results=1, maximum_distance=0.5
-        )
+        vector_db_mock.search.assert_called_once_with(query="query", n_results=1, maximum_distance=0.5)
 
         vector_db_mock.search.side_effect = Exception("search broken")
         with pytest.raises(Exception):
@@ -152,9 +148,7 @@ class TestSearchManager:  # pylint: disable=redefined-outer-name
             ({}, [], []),
         ],
     )
-    def test_flatten_search_results(
-        self, search_results, expected_docs, expected_dists
-    ):
+    def test_flatten_search_results(self, search_results, expected_docs, expected_dists):
         """Test flatten_search_results static method."""
 
         docs, dists = SearchManager.flatten_search_results(search_results)

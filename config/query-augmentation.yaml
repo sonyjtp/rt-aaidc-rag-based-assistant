@@ -1,0 +1,58 @@
+# Query Augmentation Configuration
+# Keywords used to detect follow-up questions vs new topic questions
+# This helps the query processor decide whether to augment queries with conversation context
+
+# Follow-up keywords indicate questions that continue a previous discussion
+# These queries benefit from being augmented with the last user question for context
+follow_up_keywords:
+  - "more"
+  - "tell me more"
+  - "can you elaborate"
+  - "explain further"
+  - "how does that work"
+  - "why"
+  - "how"
+  - "what does"
+  - "can you clarify"
+  - "provide details"
+  - "provide more"
+  - "expand on"
+  - "go deeper"
+  - "in more detail"
+  - "more about"
+  - "what about"
+  - "and"
+  - "also ask"
+  - "similarly"
+  - "what about the"
+  - "any other"
+  - "anything else"
+  - "compare"
+  - "difference between"
+  - "unlike"
+  - "versus"
+  - "versus the"
+  - "in contrast"
+  - "opposed to"
+
+# New topic keywords indicate questions that start a fresh topic
+# These queries should NOT be augmented to ensure clean search results
+new_topic_keywords:
+  - "tell me about"
+  - "what is"
+  - "what are"
+  - "define"
+  - "describe"
+  - "explain"
+  - "who is"
+  - "where is"
+  - "when"
+  - "list"
+  - "find"
+  - "show me"
+  - "give me"
+  - "provide"
+  - "search for"
+  - "look for"
+  - "find information"
+  - "information about"

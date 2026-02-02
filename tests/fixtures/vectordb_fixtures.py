@@ -70,18 +70,11 @@ def vectordb_mocks(vectordb_chroma_mock, vectordb_embedding_mock):
 @pytest.fixture
 def patched_vectordb(vectordb_mocks):
     """
-    Fixture providing a VectorDB instance with mocked dependencies.
-
-    Returns:
-        tuple: (VectorDB instance, mocks dict)
+    Fixture that patches the ChromaDBClient used in VectorDB with a mock.
+    Yields a VectorDB instance with the patched ChromaDBClient and the associated mocks.
     """
-
-    with patch("src.vectordb.ChromaDBClient") as mock_chroma_class, patch(
-        "src.vectordb.initialize_embedding_model"
-    ) as mock_embedding_func:
+    with patch("src.vectordb.ChromaDBClient") as mock_chroma_class:
         mock_chroma_class.return_value = vectordb_mocks["chroma_instance"]
-        mock_embedding_func.return_value = vectordb_mocks["embedding_model"]
-
         vdb = VectorDB()
 
         # Yield the instance and mocks for the test

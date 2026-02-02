@@ -43,3 +43,8 @@ chroma_db/
 Thumbs.db
 
 lesson.md
+
+
+# logs
+logs/
+*.log

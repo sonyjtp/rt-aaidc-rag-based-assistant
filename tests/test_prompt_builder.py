@@ -101,7 +101,7 @@ class TestPromptBuilderContent:
             ("inference_limits", ["infer", "inference", "speculate"]),
             ("rejection_format", ["I'm sorry, that information is not known to me."]),
             ("no_fallback", ["general knowledge", "training data"]),
-            ("examples", ["evolution of languages", "ancient civilizations"]),
+            ("examples", ["cuisine diversity", "history of trade"]),
             ("strict_grounding", ["strict", "verbatim", "explicitly"]),
             (
                 "no_supplementation",
@@ -111,13 +111,10 @@ class TestPromptBuilderContent:
     )
     def test_constraint_enforcement(self, prompt_text, constraint, keywords):
         """Parametrized test for constraint-related content."""
-        found = any(
-            keyword in prompt_text.lower() or keyword in prompt_text
-            for keyword in (keywords if isinstance(keywords, list) else [keywords])
-        )
-        assert (
-            found
-        ), f"Constraint '{constraint}' should include at least one of: {keywords}"
+        prompt_lower = prompt_text.lower()
+        items = keywords if isinstance(keywords, list) else [keywords]
+        found = any(keyword.lower() in prompt_lower for keyword in items)
+        assert found, f"Constraint '{constraint}' should include at least one of: {keywords}"
 
     # ========================================================================
     # CONTENT TYPE VERIFICATION
@@ -162,9 +159,7 @@ class TestPromptBuilderStrategy:
             mock_loader.return_value = mock_strategy
             yield mock_loader
 
-    def test_system_prompts_include_reasoning_strategy(
-        self, patched_loader, mock_strategy
-    ):
+    def test_system_prompts_include_reasoning_strategy(self, patched_loader, mock_strategy):
         """Test that system prompts include reasoning strategy instructions."""
         prompts = build_system_prompts()
         prompt_text = "\n".join(prompts)
@@ -255,10 +250,7 @@ class TestGetDefaultSystemPrompts:
 
     def test_includes_meta_handling(self, default_prompt_text):
         """Test that default prompts include handling for meta questions."""
-        assert (
-            "identity" in default_prompt_text.lower()
-            or "capabilities" in default_prompt_text.lower()
-        )
+        assert "identity" in default_prompt_text.lower() or "capabilities" in default_prompt_text.lower()
         assert "greeting" in default_prompt_text.lower()
 
 
@@ -286,9 +278,7 @@ class TestCreatePromptTemplate:
         template = create_prompt_template(system_prompts)
 
         template_str = str(template)
-        assert all(
-            var in template_str for var in ["chat_history", "context", "question"]
-        )
+        assert all(var in template_str for var in ["chat_history", "context", "question"])
 
     @pytest.mark.parametrize(
         "system_prompts",

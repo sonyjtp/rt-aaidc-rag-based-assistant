@@ -26,11 +26,13 @@ def app_mocks():
         patch("src.app.input") as mock_input,
         patch("src.app.RAGAssistant") as mock_assistant,
         patch("src.app.load_documents", return_value=["Doc 1"]) as mock_load_docs,
+        patch("src.app.logger") as mock_logger,
     ):
         yield {
             "input": mock_input,
             "assistant": mock_assistant,
             "load_docs": mock_load_docs,
+            "logger": mock_logger,
         }
 
 
@@ -53,9 +55,7 @@ class TestAppMain:
         "user_input,expected_assistant_called,expected_add_documents_called,expected_invoke_calls,"
         "expected_load_docs_called",
         [
-            pytest.param(
-                ["What is AI?", "q"], True, True, 1, True, id="single-question"
-            ),
+            pytest.param(["What is AI?", "q"], True, True, 1, True, id="single-question"),
             pytest.param(
                 ["What is AI?", "Tell me more", "Q"],
                 True,
@@ -86,9 +86,7 @@ class TestAppMain:
 
         self._assert_called_state(app_mocks["assistant"], expected_assistant_called)
         self._assert_called_state(app_mocks["load_docs"], expected_load_docs_called)
-        self._assert_called_state(
-            mocked_assistant.add_documents, expected_add_documents_called
-        )
+        self._assert_called_state(mocked_assistant.add_documents, expected_add_documents_called)
         assert mocked_assistant.invoke.call_count == expected_invoke_calls
 
     @pytest.mark.parametrize(
@@ -111,10 +109,8 @@ class TestAppMain:
             ),
         ],
     )
-    def test_main_handles_exceptions(self, exception, target):
+    def test_main_handles_exceptions(self, exception, target, app_mocks):
         """Test that main() handles various exceptions gracefully."""
-        with patch(target, side_effect=exception), patch(
-            "src.app.logger"
-        ) as mock_logger:
+        with patch(target, side_effect=exception):
             main()
-            mock_logger.error.assert_called_once()
+            app_mocks["logger"].error.assert_called_once()

@@ -4,6 +4,7 @@ from langchain_core.prompts import ChatPromptTemplate
 
 import config
 from config import PROMPT_CONFIG_FPATH
+from error_messages import REASONING_INITIALIZATION_FAILED
 from file_utils import load_yaml
 from logger import logger
 from reasoning_strategy_loader import ReasoningStrategyLoader
@@ -55,27 +56,18 @@ def build_system_prompts(
         if strategy_loader.is_strategy_enabled():
             strategy_instructions = strategy_loader.get_strategy_instructions()
             if strategy_instructions:
-                reasoning_prompt = (
-                    "Apply the following reasoning approach:\n"
-                    + "\n".join(
-                        f"- {instruction}" for instruction in strategy_instructions
-                    )
+                reasoning_prompt = "Apply the following reasoning approach:\n" + "\n".join(
+                    f"- {instruction}" for instruction in strategy_instructions
                 )
                 system_prompts.append(reasoning_prompt)
                 strategy_name = strategy_loader.get_strategy_name()
-                logger.debug(
-                    f"Added reasoning strategy {strategy_name} to system prompts."
-                )
+                logger.debug(f"Added reasoning strategy {strategy_name} to system prompts.")
         else:
-            logger.warning(
-                f"Reasoning strategy {config.REASONING_STRATEGY} is disabled."
-            )
+            logger.warning(f"Reasoning strategy {config.REASONING_STRATEGY} is disabled.")
     except Exception as e:  # pylint: disable=broad-exception-caught
-        logger.warning(f"Could not load reasoning strategy: {e}")
+        logger.warning(f"{REASONING_INITIALIZATION_FAILED}: {e}")
 
-    logger.info(
-        "System prompts built with role, style, constraints, format, and reasoning."
-    )
+    logger.info("System prompts built with role, style, constraints, format, and reasoning.")
     return system_prompts
 
 

@@ -10,26 +10,12 @@ from langchain_groq import ChatGroq
 from langchain_openai import ChatOpenAI
 
 # ============================================================================
-# PATHS & DIRECTORIES
+# FILENAMES, PATHS & DIRECTORIES
 # ============================================================================
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(ROOT_DIR, os.getenv("DATA_DIR", "data"))
-
-
-# ============================================================================
-# ERROR MESSAGES
-# ============================================================================
-
-ERROR_NO_API_KEY = (
-    "No valid API key found. Please set one of: "
-    "OPENAI_API_KEY, GROQ_API_KEY, or GOOGLE_API_KEY in your .env file"
-)
-
-ERROR_SEARCH_MANAGER_UNAVAILABLE = (
-    "Unable to initialize the assistant at this time. Please refresh the page "
-    "and try again. If the problem persists, please contact support."
-)
+README = "README.md"
 
 
 # ============================================================================
@@ -96,6 +82,7 @@ CHROMA_COLLECTION_METADATA = {
 # Vector Database Collections
 VECTOR_DB_COLLECTION_NAME = "documents"
 COLLECTION_NAME_DEFAULT = "rag_documents"
+VECTOR_DB_BATCH_SIZE_LIMIT = 300
 
 # Embedding Model
 VECTOR_DB_EMBEDDING_MODEL = "sentence-transformers/all-mpnet-base-v2"
@@ -113,8 +100,8 @@ CHUNK_OVERLAP = 200  # Increased from 100 (20% overlap) for better context
 TEXT_SPLITTER_SEPARATORS = ["\n\n", "\n", ". ", " ", ""]
 
 # Retrieval Configuration
-RETRIEVAL_K = 20
-DISTANCE_THRESHOLD = 0.4
+RETRIEVAL_K = 5
+DISTANCE_THRESHOLD = 1.0
 
 
 # ============================================================================
@@ -127,7 +114,7 @@ MEMORY_STRATEGIES_FPATH = os.path.join(ROOT_DIR, "config", "memory_strategies.ya
 MEMORY_STRATEGY = "summarization_sliding_window"
 
 # Default memory strategy parameters
-DEFAULT_MEMORY_SLIDING_WINDOW_SIZE = 10
+DEFAULT_MEMORY_SLIDING_WINDOW_SIZE = 3
 CHAT_HISTORY = "chat_history"
 MEMORY_PARAMETERS_KEY = "parameters"
 DEFAULT_MAX_MESSAGES = 50
@@ -135,9 +122,7 @@ DEFAULT_SUMMARY_PROMPT = "Summarize the conversation so far in a few sentences."
 DEFAULT_SUMMARY_INTERVAL = 10  # Summarize every 10 messages
 
 # Reasoning Strategy Configuration
-REASONING_STRATEGIES_FPATH = os.path.join(
-    ROOT_DIR, "config", "reasoning_strategies.yaml"
-)
+REASONING_STRATEGIES_FPATH = os.path.join(ROOT_DIR, "config", "reasoning_strategies.yaml")
 # Options: rag_enhanced_reasoning, simple_few_shot, none
 REASONING_STRATEGY = "rag_enhanced_reasoning"
 
@@ -150,6 +135,3 @@ METAQUESTIONS_FPATH = os.path.join(ROOT_DIR, "config", "meta-questions.yaml")
 
 # Query Augmentation Configuration
 QUERY_AUGMENTATION_PATH = os.path.join(ROOT_DIR, "config", "query-augmentation.yaml")
-
-# Canonical message returned when the assistant cannot answer from documents
-DEFAULT_NOT_KNOWN_MSG = "I'm sorry, that information is not known to me."

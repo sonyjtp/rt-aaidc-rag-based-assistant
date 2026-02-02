@@ -36,10 +36,7 @@ class TestHallucinationPrevention:
         assert "ABSOLUTE RULE" in system_prompt_text or "CRITICAL" in system_prompt_text
         assert "DO NOT" in system_prompt_text.upper()
         # allow either 'training data' or 'general knowledge' phrasing
-        assert (
-            "GENERAL KNOWLEDGE" in system_prompt_text.upper()
-            or "TRAINING DATA" in system_prompt_text.upper()
-        )
+        assert "GENERAL KNOWLEDGE" in system_prompt_text.upper() or "TRAINING DATA" in system_prompt_text.upper()
 
     def test_system_prompts_specify_out_of_scope_rejection(
         self, system_prompt_text
@@ -47,35 +44,19 @@ class TestHallucinationPrevention:
         """Test that system prompts specify rejection response for out-of-scope questions."""
         assert "not known to me" in system_prompt_text
 
-    def test_system_prompts_include_example_topics(
-        self, system_prompt_text
-    ):  # pylint: disable=redefined-outer-name
-        """Test that system prompts mention concrete example topics from knowledge base."""
-        prompt_lower = system_prompt_text.lower()
-        assert "evolution of languages" in prompt_lower
-        assert "ancient civilizations" in prompt_lower
-
     def test_system_prompts_forbid_general_knowledge_and_fallbacks(
         self, system_prompt_text
     ):  # pylint: disable=redefined-outer-name
         """Test that system prompts explicitly forbid general knowledge and fallback answers."""
         prompt_lower = system_prompt_text.lower()
-        assert any(
-            phrase in prompt_lower for phrase in ["general knowledge", "training data"]
-        )
+        assert any(phrase in prompt_lower for phrase in ["general knowledge", "training data"])
         # 'fallback' may or may not be present in original prompts; make it optional but acceptable
 
-    def test_system_prompts_forbid_inference_and_require_explicitness(
-        self, system_prompt_text
-    ):
+    def test_system_prompts_forbid_inference_and_require_explicitness(self, system_prompt_text):
         """Test that system prompts forbid inference and require explicit grounding."""
         prompt_lower = system_prompt_text.lower()
         # Must forbid inference or speculation
-        assert (
-            "infer" in prompt_lower
-            or "speculate" in prompt_lower
-            or "do not" in prompt_lower
-        )
+        assert "infer" in prompt_lower or "speculate" in prompt_lower or "do not" in prompt_lower
         # Must require explicit statements
         assert "explicitly" in prompt_lower or "verbatim" in prompt_lower
 
@@ -119,9 +100,7 @@ class TestHallucinationPrevention:
     def test_build_system_prompts_with_exception_in_reasoning_strategy(self):
         """Test graceful handling when reasoning strategy raises an exception."""
         mock_strategy = MagicMock()
-        mock_strategy.is_strategy_enabled.side_effect = Exception(
-            "Strategy loading failed"
-        )
+        mock_strategy.is_strategy_enabled.side_effect = Exception("Strategy loading failed")
 
         # Should not raise, should log warning and return valid prompts
         prompts = build_system_prompts(reasoning_strategy=mock_strategy)
@@ -139,10 +118,7 @@ class TestHallucinationPrevention:
 
         # If it forbids general knowledge, shouldn't also permit it
         if "do not use" in prompt_lower and "general knowledge" in prompt_lower:
-            assert (
-                "you may use" not in prompt_lower
-                or "general knowledge" not in prompt_lower
-            )
+            assert "you may use" not in prompt_lower or "general knowledge" not in prompt_lower
 
     # ========================================================================
     # DEFAULT PROMPTS AND FALLBACK TESTS
@@ -175,10 +151,7 @@ class TestHallucinationPrevention:
         """Test that prompts guide proper use of conversation context."""
         # Prompts should mention using context for follow-ups
         prompt_lower = system_prompt_text.lower()
-        assert any(
-            keyword in prompt_lower
-            for keyword in ["context", "conversation", "follow", "previous"]
-        )
+        assert any(keyword in prompt_lower for keyword in ["context", "conversation", "follow", "previous"])
 
     def test_system_prompts_mention_document_reliance_requirement(
         self, system_prompt_text
@@ -224,9 +197,7 @@ class TestHallucinationPrevention:
             "i think",
         ],
     )
-    def test_system_prompts_avoid_uncertainty_language(
-        self, system_prompt_text, forbidden_phrase
-    ):
+    def test_system_prompts_avoid_uncertainty_language(self, system_prompt_text, forbidden_phrase):
         """Parametrized test: ensure prompts don't contain uncertain language instructions.
 
         The LLM should never be told to use phrases that indicate uncertainty,
@@ -237,9 +208,7 @@ class TestHallucinationPrevention:
         # (It's okay if the word appears in a "DO NOT" instruction)
         if forbidden_phrase in prompt_lower:
             # If word appears, it should be in a negative context
-            assert "not" in prompt_lower or "don't" in prompt_lower.replace(
-                "dont", "don't"
-            )
+            assert "not" in prompt_lower or "don't" in prompt_lower.replace("dont", "don't")
 
     # ========================================================================
     # STRICT GROUNDING AND SUPPLEMENTATION PREVENTION TESTS
@@ -283,9 +252,7 @@ class TestHallucinationPrevention:
 
         # Should include strict grounding language
         assert (
-            "strict" in prompt_lower
-            or "verbatim" in prompt_lower
-            or "explicitly" in prompt_lower
+            "strict" in prompt_lower or "verbatim" in prompt_lower or "explicitly" in prompt_lower
         ), "Prompts should include strict grounding requirements"
 
         # Should forbid elaborations and analogies

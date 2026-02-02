@@ -2,6 +2,10 @@
 
 from typing import Dict, List, Tuple
 
+from error_messages import (
+    SEARCH_MANAGER_INITIALIZATION_FAILED,
+    VECTOR_DB_INITIALIZATION_FAILED,
+)
 from logger import logger
 from vectordb import VectorDB
 
@@ -23,7 +27,7 @@ class SearchManager:
 
         # Fail fast if required components are not available
         if self.llm is None or self.vector_db is None:
-            raise RuntimeError("SearchManager: LLM initialization failed")
+            raise RuntimeError(SEARCH_MANAGER_INITIALIZATION_FAILED)
 
     def _initialize_vector_db(self) -> None:
         """Initialize the vector database with error handling."""
@@ -31,7 +35,7 @@ class SearchManager:
             self.vector_db = VectorDB()
             logger.info("Vector database initialized.")
         except Exception as e:  # pylint: disable=broad-exception-caught
-            logger.error(f"Error initializing vector database: {e}")
+            logger.error(f"{VECTOR_DB_INITIALIZATION_FAILED}: {e}")
             self.vector_db = None
 
     def add_documents(self, documents: list[str] | list[dict[str, str]]) -> None:
@@ -53,9 +57,7 @@ class SearchManager:
     def search(self, query: str, n_results: int, maximum_distance: float) -> Dict:
         """Delegate to VectorDB.search and surface errors to caller."""
         try:
-            return self.vector_db.search(
-                query=query, n_results=n_results, maximum_distance=maximum_distance
-            )
+            return self.vector_db.search(query=query, n_results=n_results, maximum_distance=maximum_distance)
         except Exception as e:  # keep behavior similar to original
             logger.error(f"Error during document search: {e}")
             raise
@@ -81,15 +83,10 @@ class SearchManager:
     @staticmethod
     def log_search_results(flat_docs: List[str], flat_distances: List[float]) -> None:
         """Log truncated documents and similarity scores for debugging."""
-        truncated_docs = [
-            doc[:50] + "..." if isinstance(doc, str) and len(doc) > 50 else doc
-            for doc in flat_docs
-        ]
+        truncated_docs = [doc[:50] + "..." if isinstance(doc, str) and len(doc) > 50 else doc for doc in flat_docs]
         similarity_scores = [1 - dist for dist in flat_distances]
         for i, (doc, sim_score) in enumerate(zip(truncated_docs, similarity_scores)):
-            logger.debug(
-                f"Retrieved Result {i + 1}: {doc}, similarity_score: {sim_score}"
-            )
+            logger.debug(f"Retrieved Result {i + 1}: {doc}, similarity_score: {sim_score}")
 
     def is_context_relevant_to_query(self, query: str, context: str) -> bool:
         """
@@ -101,9 +98,7 @@ class SearchManager:
             return False
 
         if not getattr(self, "llm", None):
-            logger.warning(
-                "LLM not available for context validation, assuming relevant"
-            )
+            logger.warning("LLM not available for context validation, assuming relevant")
             return True
 
         try:

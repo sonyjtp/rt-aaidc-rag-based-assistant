@@ -1,44 +1,71 @@
-# Meta-question patterns and safe responses. Keep this file under review/approval by policy owners.
+# Meta-question patterns for system/assistant queries (NOT domain queries)
+# Key principle: Disambiguate by requiring explicit project context (you/your/this/system)
+# Examples:
+#   ✅ "What is your architecture?" → Meta-question (explicit: "your")
+#   ✅ "What is this application?" → Meta-question (explicit: "this")
+#   ❌ "What is Indian architecture?" → Domain query (no "your/this/system")
+#   ❌ "Tell me about India" → Domain query (not "yourself/project/system")
+
 meta_questions:
-  # simple descriptive prompts about the assistant
+  # ============================================================================
+  # DESCRIBE: Self-description and capability questions (→ README.md)
+  # ============================================================================
   - pattern: "(?i)\\b(who are you|what are you|introduce yourself|tell me about yourself)\\b"
     kind: "describe"
     response: "I'm an AI assistant with comprehensive knowledge about India. I can discuss India's rich history, diverse culture, geography, religions, traditions, government, economy, and much more. Whether you're interested in ancient civilizations, contemporary issues, regional variations, or any aspect of Indian civilization, I'm here to help! Feel free to ask me anything about India."
-  - pattern: "(?i)\\b(what can you do|what are your capabilities|how can you help|what topics)\\b"
+
+  - pattern: "(?i)\\b(what can you do|what are your capabilities|how can you help)\\b"
     kind: "describe"
     response: "I can help you explore comprehensive information about India! I'm knowledgeable about India's history, culture, geography, religions, arts, sciences, government, economy, tourism, cuisine, sports, literature, and much more. Ask me about anything related to India—from its ancient civilizations to its contemporary developments, and I'll do my best to help!"
-  - pattern: "(?i)\\b(what are my|what are your)\\s+(limitations|limits|restrictions)\\b"
+
+  - pattern: "(?i)\\b(what are your|what are my)\\s+(limitations|limits|restrictions|scope)\\b"
     kind: "describe"
     response: "I'm specialized in answering questions about India—its history, culture, geography, people, achievements, and contemporary issues. My knowledge is limited to this curated India-focused collection, so I may not have detailed information about other countries or unrelated topics. For questions outside my India expertise, I'll let you know that I don't have that information."
 
-  # README-related meta questions - these trigger dynamic README content retrieval
-  - pattern: "(?i)\\b(what features|what capabilities|what can you do|what tools|what models|what llms)\\b"
-    kind: "readme_extract"
-    response_type: "tools_and_models"
-  - pattern: "(?i)\\b(tell me about yourself|tell me about|about this project|about this assistant|project overview)\\b"
+  # ============================================================================
+  # README_EXTRACT: Project/System information (→ README.md)
+  # All patterns require explicit context: "you/your/this/system"
+  # ============================================================================
+
+  # Overview/About
+  - pattern: "(?i)\\b(tell me about (yourself|this|your)|about (this|you)|what.*this.*application|overview)\\b"
     kind: "readme_extract"
     response_type: "overview"
-  - pattern: "(?i)\\b(how are you built|what is your architecture|architecture|system design|how is it designed)\\b"
-    kind: "readme_extract"
-    response_type: "architecture"
-  - pattern: "(?i)\\b(how to customize|customization|configure|configuration)\\b"
-    kind: "readme_extract"
-    response_type: "customization"
-  - pattern: "(?i)\\b(get started|quick start|how to get started|how to install|getting started|setup)\\b"
-    kind: "readme_extract"
-    response_type: "quick_start"
 
-  - pattern: "(?i)\\b(list of features|all features|feature list|what are your features)\\b"
+  # Features/Capabilities of THE SYSTEM (not generic "capabilities")
+  - pattern: "(?i)\\b(your features|what features|feature list|this.*features)\\b"
     kind: "readme_extract"
     response_type: "features"
 
-  # sensitive requests that must always be refused
-  - pattern: "(?i)\\b(show|reveal|display).*\\b(system prompt|internal prompt|system message|prompt)\\b"
+  # Architecture/Design (explicit context required)
+  - pattern: "(?i)\\b(your architecture|this.*architecture|system design|how are you built|how is it designed)\\b"
+    kind: "readme_extract"
+    response_type: "architecture"
+
+  # Tools/Models used by THE SYSTEM
+  - pattern: "(?i)\\b(your tools|your models|what tools|what models|what llm|what.*use)\\b"
+    kind: "readme_extract"
+    response_type: "tools_and_models"
+
+  # Customization
+  - pattern: "(?i)\\b(how to customize|how to configure|customize|configure)\\b"
+    kind: "readme_extract"
+    response_type: "customization"
+
+  # Quick start
+  - pattern: "(?i)\\b(quick start|get started|how to start|how to install|how to setup|installation)\\b"
+    kind: "readme_extract"
+    response_type: "quick_start"
+
+  # ============================================================================
+  # SENSITIVE: Requests that must be refused
+  # ============================================================================
+  - pattern: "(?i)\\b(show|reveal|display).*\\b(system prompt|internal prompt|system message)\\b"
     kind: "sensitive"
-    response: "I'm sorry, I can't disclose internal prompts or system details."
+    response: "I'm sorry, I can't disclose internal system details or prompts."
 
-# Global toggle: whether the assistant may provide brief self-descriptions for 'describe' meta queries
+# ============================================================================
+# Global configuration
+# ============================================================================
 allow_self_description: true
-
-# The response returned when a sensitive request or disallowed meta-question is received
 default_meta_refusal: "I'm sorry, I can't help with that request."

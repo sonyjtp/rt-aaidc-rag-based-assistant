@@ -3,7 +3,8 @@ Utility functions for initializing and managing LLMs.
 """
 import os
 
-from config import ERROR_NO_API_KEY, LLM_PROVIDERS, LLM_TEMPERATURE
+from config import LLM_PROVIDERS, LLM_TEMPERATURE
+from error_messages import LLM_INITIALIZATION_FAILED, MISSING_API_KEY
 
 
 def initialize_llm():
@@ -16,7 +17,6 @@ def initialize_llm():
         api_key = os.getenv(provider["api_key_env"])
         if api_key:
             model_name = os.getenv(provider["model_env"], provider["default_model"])
-
             # Initialize LLM with provider-specific parameters
             kwargs = {
                 provider["api_key_param"]: api_key,
@@ -24,6 +24,5 @@ def initialize_llm():
                 "temperature": LLM_TEMPERATURE,
             }
             return provider["class"](**kwargs)
-
-    # If no provider is available, raise an error
-    raise ValueError(ERROR_NO_API_KEY)
+        raise ValueError(MISSING_API_KEY)
+    raise RuntimeError(LLM_INITIALIZATION_FAILED)

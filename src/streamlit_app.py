@@ -5,7 +5,8 @@ import os
 import streamlit as st
 from dotenv import load_dotenv
 
-from config import DATA_DIR, DOCUMENT_TYPES, ERROR_SEARCH_MANAGER_UNAVAILABLE
+from config import DATA_DIR, DOCUMENT_TYPES
+from error_messages import SEARCH_MANAGER_INITIALIZATION_FAILED
 from file_utils import load_documents
 from logger import logger
 from rag_assistant import RAGAssistant
@@ -48,7 +49,7 @@ if not st.session_state.initialization_attempted:
     except Exception as e:  # pylint: disable=broad-exception-caught
         st.session_state.initialized = False
         logger.error(f"Error initializing assistant: {e}")
-        st.error(ERROR_SEARCH_MANAGER_UNAVAILABLE)
+        st.error(SEARCH_MANAGER_INITIALIZATION_FAILED)
 
 # Sidebar configuration
 with st.sidebar:
@@ -133,9 +134,7 @@ if st.session_state.initialized:
             )
 
         with col2:
-            send_button = st.form_submit_button(
-                "Send", use_container_width=True, type="primary"
-            )
+            send_button = st.form_submit_button("Send", use_container_width=True, type="primary")
 
     # Process user input outside the form
     if send_button and user_input:
@@ -144,9 +143,7 @@ if st.session_state.initialized:
         logger.info(f"User question: {user_input}")
 
         # Get assistant response
-        status = st.status(
-            "🔍 Searching documents and generating response...", expanded=True
-        )
+        status = st.status("🔍 Searching documents and generating response...", expanded=True)
         try:
             response = st.session_state.assistant.invoke(user_input)
             logger.debug(f"Agent response received: {response[:100]}")
@@ -160,17 +157,13 @@ if st.session_state.initialized:
             cleaned_lines = []
             skip_next = False  # pylint: disable=invalid-name
 
-            for i, line in enumerate(
-                lines
-            ):  # pylint: disable=unused-variable, invalid-name
+            for i, line in enumerate(lines):  # pylint: disable=unused-variable, invalid-name
                 # Skip markdown headers (lines starting with # or **)
                 if line.strip().startswith("#") or line.strip().startswith("**"):
                     skip_next = True
                     continue
                 # Skip separator lines (===, ---, etc.)
-                if skip_next and (
-                    all(c in "=-_" for c in line.strip()) and len(line.strip()) > 3
-                ):
+                if skip_next and (all(c in "=-_" for c in line.strip()) and len(line.strip()) > 3):
                     skip_next = False
                     continue
                 # Skip empty lines at the start
@@ -178,14 +171,10 @@ if st.session_state.initialized:
                     cleaned_lines.append(line)
                 skip_next = False
 
-            CLEANED_RESPONSE = "\n".join(
-                cleaned_lines
-            ).strip()  # pylint: disable=invalid-name
+            CLEANED_RESPONSE = "\n".join(cleaned_lines).strip()  # pylint: disable=invalid-name
             logger.info(f"Cleaned response: {CLEANED_RESPONSE[:100]}")
 
-            st.session_state.chat_history.append(
-                {"role": "assistant", "content": CLEANED_RESPONSE}
-            )
+            st.session_state.chat_history.append({"role": "assistant", "content": CLEANED_RESPONSE})
             status.update(label="✅ Response generated!", state="complete")
             st.rerun()
         except Exception as e:  # pylint: disable=broad-exception-caught
