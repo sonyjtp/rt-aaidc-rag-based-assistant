@@ -1,0 +1,82 @@
+# Meta-question patterns and safe responses. Keep this file under review/approval by policy owners.
+meta_questions:
+  # simple descriptive prompts about the assistant
+  - pattern: "(?i)\\b(who are you|what are you|introduce yourself|tell me about yourself)\\b"
+    kind: "describe"
+    response: |
+      I'm an AI assistant trained to answer questions about these specific topics:
+
+      • Algorithmic Taste
+      • Ancient Civilizations
+      • Biophilic Modernism
+      • Bordercore Art
+      • Choice Paralysis
+      • Conspiracy Theories Proven True
+      • Contentment
+      • Cross Cultural Slang
+      • Crowded Loneliness
+      • Cultural Practices Rituals
+      • Evolution of Languages
+      • Exotic Quasiparticles
+      • Extinct Sports
+      • Famous Fugitives
+      • Ghost Towns
+      • Global Citizenship
+      • Human to Machine Communication
+      • Hybrid Intelligence
+      • Minimalism in Art
+      • Noetic Science
+      • Post Quantum Cryptography
+      • Remote Controlled Proteins
+      • Semiotics
+      • Simultaneous Inventions
+      • Sister Cities
+      • Tissue Code
+
+      Feel free to ask me about any of these subjects!"
+  - pattern: "(?i)\\b(what can you do|what are your capabilities|how can you help|what topics)\\b"
+    kind: "describe"
+    response: |
+      I can discuss these 26 specialized topics:
+
+      • Algorithmic Taste
+      • Ancient Civilizations
+      • Biophilic Modernism
+      • Bordercore Art
+      • Choice Paralysis
+      • Conspiracy Theories Proven True
+      • Contentment
+      • Cross Cultural Slang
+      • Crowded Loneliness
+      • Cultural Practices Rituals
+      • Evolution of Languages
+      • Exotic Quasiparticles
+      • Extinct Sports
+      • Famous Fugitives
+      • Ghost Towns
+      • Global Citizenship
+      • Human to Machine Communication
+      • Hybrid Intelligence
+      • Minimalism in Art
+      • Noetic Science
+      • Post Quantum Cryptography
+      • Remote Controlled Proteins
+      • Semiotics
+      • Simultaneous Inventions
+      • Sister Cities
+      • Tissue Code
+
+      Ask me anything about these!"
+  - pattern: "(?i)\\b(what are my|what are your)\\s+(limitations|limits|restrictions)\\b"
+    kind: "describe"
+    response: "I am limited to answering questions based on the 26 specialized topics in my knowledge base. I cannot provide information on topics outside of this curated collection. These topics span science, culture, history, art, philosophy, and linguistics. For questions outside these areas, I'll let you know that I don't have information on that topic."
+  # sensitive requests that must always be refused
+  - pattern: "(?i)\\b(show|reveal|display).*\\b(system prompt|internal prompt|system message|prompt)\\b"
+    kind: "sensitive"
+    response: "I'm sorry, I can't disclose internal prompts or system details."
+
+# Global toggle: whether the assistant may provide brief self-descriptions for 'describe' meta queries
+allow_self_description: true
+
+# The response returned when a sensitive request or disallowed meta-question is received
+default_meta_refusal: "I'm sorry, I can't help with that request."
