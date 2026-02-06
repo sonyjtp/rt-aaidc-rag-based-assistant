@@ -54,10 +54,7 @@ logger.add(
     enqueue=False,
 )
 
-FILE_FORMAT = (
-    "{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | "
-    + "{name}:{function}:{line} - {message}"
-)
+FILE_FORMAT = "{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | " + "{name}:{function}:{line} - {message}"
 
 logger.add(
     LOG_FILE,
@@ -69,7 +66,7 @@ logger.add(
 )
 
 # Log initialization info
-logger.debug(f"Logger initialized with LOG_LEVEL: {LOG_LEVEL}")
+logger.info(f"Logger initialized with LOG_LEVEL: {LOG_LEVEL}")
 logger.debug(f"Log files location: {LOG_DIR}")
 
 __all__ = ["logger"]

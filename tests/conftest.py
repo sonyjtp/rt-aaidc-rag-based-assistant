@@ -23,6 +23,7 @@ from tests.fixtures.chroma_fixtures import *  # noqa: F401,F403,E402
 from tests.fixtures.embedding_fixtures import *  # noqa: F401,F403,E402
 from tests.fixtures.file_utils_fixtures import *  # noqa: F401,F403,E402
 from tests.fixtures.llm_fixtures import *  # noqa: F401,F403,E402
+from tests.fixtures.prompt_fixtures import *  # noqa: F401,F403,E402
 from tests.fixtures.streamlit_fixtures import *  # noqa: F401,F403,E402
 from tests.fixtures.vectordb_fixtures import *  # noqa: F401,F403,E402
 

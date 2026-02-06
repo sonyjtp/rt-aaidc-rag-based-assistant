@@ -4,12 +4,12 @@ import re
 
 import streamlit as st
 
-from config import DATA_DIR, DOCUMENT_TYPES
+from app_constants import DATA_DIR, STYLES_PATH
+from config import DOCUMENT_TYPES
+from file_utils import read_file
 
 
-def _get_valid_topics_from_documents(
-    file_extensions: str | tuple[str, ...] = DOCUMENT_TYPES
-) -> set[str]:
+def _get_valid_topics_from_documents(file_extensions: str | tuple[str, ...] = DOCUMENT_TYPES) -> set[str]:
     """
     Extract valid topic names from the data directory document filenames.
 
@@ -51,25 +51,17 @@ def validate_and_filter_topics(response: str) -> str:
     """
     # Remove any 'Related Topics You Can Explore: [...]' section (case-insensitive)
     related_topics_pattern = r"Related Topics You Can Explore:\s*\[.*?\]"
-    response = re.sub(
-        related_topics_pattern, "", response, flags=re.IGNORECASE | re.DOTALL
-    )
+    response = re.sub(related_topics_pattern, "", response, flags=re.IGNORECASE | re.DOTALL)
     return response.strip()
 
 
 def load_custom_styles() -> None:
     """Load custom CSS styles from static/css/styles.css file."""
-    # Get the path to the styles.css file relative to the project root
-    # __file__ is in src/, so go up 1 directory to reach project root
-    src_dir = os.path.dirname(os.path.abspath(__file__))
-    project_root = os.path.dirname(src_dir)
-    styles_path = os.path.join(project_root, "static", "css", "styles.css")
 
-    try:
-        with open(styles_path, "r", encoding="utf-8") as f:
-            css_content = f.read()
+    css_content = read_file(STYLES_PATH)
+    if css_content:
         st.markdown(f"<style>{css_content}</style>", unsafe_allow_html=True)
-    except FileNotFoundError:
+    else:
         st.warning("Custom styles file not found. Using default styling.")
 
 

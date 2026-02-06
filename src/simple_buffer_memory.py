@@ -5,7 +5,7 @@ Stores conversation history in a simple buffer without summarization.
 
 from collections import deque
 
-from logger import logger
+from log_manager import logger
 
 
 class SimpleBufferMemory:

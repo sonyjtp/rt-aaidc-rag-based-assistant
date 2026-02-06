@@ -3,7 +3,7 @@
 Maintains a running summary of the conversation using the LLM.
 """
 from config import DEFAULT_SUMMARY_INTERVAL
-from logger import logger
+from log_manager import logger
 
 
 class SummaryMemory:
@@ -95,10 +95,7 @@ class SummaryMemory:
             Dictionary with memory key and current summary
         """
         try:
-            return {
-                self.memory_key: self.summary
-                or f"Conversation with {self.message_count} messages"
-            }
+            return {self.memory_key: self.summary or f"Conversation with {self.message_count} messages"}
         except Exception as e:  # pylint: disable=broad-exception-caught
             logger.error(f"Error loading memory variables: {e}")
             return {self.memory_key: ""}

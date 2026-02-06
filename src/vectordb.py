@@ -4,16 +4,16 @@ from typing import Any, Dict
 from chromadb.errors import InvalidArgumentError
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
+from app_constants import COLLECTION_NAME_DEFAULT, PUNCTUATION_CHARS
 from chroma_client import ChromaDBClient
 from config import (
     CHUNK_OVERLAP,
     CHUNK_SIZE,
-    COLLECTION_NAME_DEFAULT,
-    PUNCTUATION_CHARS,
     TEXT_SPLITTER_SEPARATORS,
     VECTOR_DB_BATCH_SIZE_LIMIT,
 )
-from logger import logger
+from error_messages import DOCUMENTS_MISSING
+from log_manager import logger
 from str_utils import format_tags
 
 
@@ -28,11 +28,21 @@ class VectorDB:
         Steps:
         1. Initialize ChromaDB client and get or create collection
         2. Initialize text splitter for chunking documents
+
+        Functions:
+        1. add_documents: Chunk and insert documents to the vector database
+        2. search: Search for similar documents in the vector database
+        3. standardize_document: Standardize a document to a dict format
+        4. _chunk_documents: Chunk documents into smaller pieces with metadata
+        5. _insert_chunks_into_db: Insert deduplicated chunks into the vector database
+        6. _filter_duplicate_chunks: Filter out duplicate chunks at the chunk level
+        7. _extract_search_results: Extract search result components from ChromaDB response
+        8. _filter_search_results: Filter search results based on distance threshold
         """
 
         # Initialize ChromaDB client and get or create collection
         self.collection = ChromaDBClient().get_or_create_collection(COLLECTION_NAME_DEFAULT)
-        logger.info(f"Vector database collection: {self.collection.name}")
+        logger.debug(f"Vector database collection {self.collection.name} created/loaded.")
 
         # Initialize text splitter for chunking documents
         self.text_splitter = RecursiveCharacterTextSplitter(
@@ -40,6 +50,7 @@ class VectorDB:
             chunk_overlap=CHUNK_OVERLAP,
             separators=TEXT_SPLITTER_SEPARATORS,
         )
+        logger.debug(f" Text splitter initialized with chunk size = {CHUNK_SIZE} and overlap = {CHUNK_OVERLAP}.")
 
     def add_documents(self, documents: list[str] | list[dict[str, str]]) -> None:
         """
@@ -53,8 +64,8 @@ class VectorDB:
                         'title', 'filename', and 'tags')
         """
         if not documents:
-            logger.info("No documents to add.")
-            return
+            logger.error("No documents to add.")
+            raise ValueError(DOCUMENTS_MISSING)
 
         # Chunk all documents (no document-level filtering)
         chunks_with_metadata = self._chunk_documents(documents=documents)
@@ -63,7 +74,7 @@ class VectorDB:
 
     def search(self, query: str, n_results: int = 5, maximum_distance: float = 0.35) -> Dict[str, Any]:
         """
-        Search for similar documents in the vector database.
+        Search for similar documents in the vector database using a query string.
 
         Args:
             query: Search query
@@ -92,10 +103,8 @@ class VectorDB:
                 }
             raise
 
-        documents, metadatas, distances, ids = self._extract_search_results(results)
-        documents, metadatas, distances, ids = self._filter_search_results(
-            documents, metadatas, distances, ids, maximum_distance
-        )
+        # Extract and filter results based on maximum distance
+        documents, metadatas, distances, ids = self._extract_and_filter_search_results(results, maximum_distance)
 
         logger.debug(f"Retrieved {len(documents)} results")
 
@@ -116,6 +125,7 @@ class VectorDB:
     @staticmethod
     def standardize_document(doc):
         """Standardize a document to a dict with 'content', 'title', 'filename', and 'tags'."""
+
         if isinstance(doc, dict):
             return {
                 "content": doc.get("content", ""),
@@ -130,59 +140,6 @@ class VectorDB:
             "tags": "",
         }
 
-    def _filter_existing_documents(
-        self, documents: list[str] | list[dict[str, str]]
-    ) -> list[str] | list[dict[str, str]]:
-        """
-        Filter out documents that already exist in the database.
-
-        A document is considered to already exist if its filename is found in
-        the database metadata. We use filename as the unique identifier since
-        it's stable across runs, unlike title which is extracted from content.
-
-        Args:
-            documents: List of documents to filter
-
-        Returns:
-            List of documents that don't already exist in the database
-        """
-        try:
-            # Get all existing documents from the database
-            existing_docs = self.collection.get()
-            existing_metadatas = existing_docs.get("metadatas", [])
-
-            # Build a set of existing filenames (stable, unique identifier)
-            existing_filenames = set()
-            for metadata in existing_metadatas:
-                if metadata and metadata.get("filename"):
-                    existing_filenames.add(metadata["filename"])
-
-            if not existing_filenames:
-                # No existing documents, all are new
-                return documents
-
-            # Filter documents based on whether their filename already exists
-            new_documents = []
-            for doc in documents:
-                normalized = self.standardize_document(doc)
-                filename = normalized.get("filename", "")
-
-                # Only add document if:
-                # 1. It has a filename AND doesn't already exist, OR
-                # 2. It's a string document without filename (raw content, always new)
-                if isinstance(doc, str):
-                    # String documents are always new (no filename to check)
-                    new_documents.append(doc)
-                elif filename and filename not in existing_filenames:
-                    # Dict document with new filename
-                    new_documents.append(doc)
-                # else: Skip dict documents that already exist in database
-
-            return new_documents
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            logger.warning(f"Error filtering existing documents: {e}. Adding all documents.")
-            return documents
-
     def _chunk_documents(self, documents: list[str] | list[dict[str, str]]) -> list[tuple[str, dict[str, str]]]:
         """Chunk documents into smaller pieces. Each chunk is paired with metadata.
 
@@ -194,6 +151,7 @@ class VectorDB:
         """
         result = []
         for doc in documents:
+            # Standardize document format to dict of content, title, filename, tags
             normalized = self.standardize_document(doc)
             for chunk in self.text_splitter.split_text(normalized["content"]):
                 # Avoid adding empty chunks or chunks identical to the title which are not useful
@@ -211,7 +169,7 @@ class VectorDB:
         return result
 
     def _insert_chunks_into_db(self, chunks: list[tuple[str, dict]]) -> None:
-        """Insert deduplicated chunks into the vector database.
+        """Deduplicate and insert chunks into the vector database.
 
         Args:
             chunks: List of tuples containing chunk text and metadata
@@ -238,15 +196,16 @@ class VectorDB:
                 logger.debug(f"Added batch with {len(batch_chunks)} chunks")
             logger.info(f"Added {len(deduplicated_chunks)} chunks to the vector database.")
         else:
-            logger.warning("No new chunks to add (all are duplicates)")
+            logger.info("No new chunks to add (all are duplicates)")
 
     def _filter_duplicate_chunks(self, chunks: list[tuple[str, dict]]) -> list[tuple[str, dict]]:
         """
-        Filter out duplicate chunks.
-        Removes chunks that already exist in the database AND duplicates within the current batch.
+        Filter out duplicate chunks
 
-        Normalization: All chunks are normalized (stripped and left-stripped of punctuation)
-        before comparison with existing database chunks.
+        Steps:
+        1. Retrieve all existing documents from the database in batches
+        2. Normalize chunk text for comparison
+        3. Filter out chunks that already exist in the database or are duplicates within the batch
 
         Args:
             chunks: List of tuples containing chunk text and metadata
@@ -275,8 +234,6 @@ class VectorDB:
                 break
 
         logger.debug(f"Existing chunks in DB: {len(existing_texts)}")
-        if existing_texts:
-            logger.debug(f"Sample existing chunk: {list(existing_texts)[0][:100]}")
 
         # Filter out chunks that already exist in database and remove duplicates within the batch
         seen = set(existing_texts)
@@ -294,40 +251,27 @@ class VectorDB:
                 duplicates_found += 1
 
         logger.debug(f"Duplicates found: {duplicates_found}, New chunks: {len(final_chunks)}")
-
         return final_chunks
 
     @staticmethod
-    def _extract_search_results(results: dict) -> tuple:
-        """Extract search result components from ChromaDB response."""
-        return (
-            results.get("documents", [[]])[0] if results.get("documents") else [],
-            results.get("metadatas", [[]])[0] if results.get("metadatas") else [],
-            results.get("distances", [[]])[0] if results.get("distances") else [],
-            results.get("ids", [[]])[0] if results.get("ids") else [],
-        )
-
-    @staticmethod
-    def _filter_search_results(
-        documents: list,
-        metadatas: list,
-        distances: list,
-        ids: list,
-        maximum_distance: float,
-    ) -> tuple:
+    def _extract_and_filter_search_results(results: dict, maximum_distance: float) -> tuple:
         """
-        Filter search results based on distance threshold.
+        Extract search result components from ChromaDB response and filter by distance threshold.
 
         Args:
-            documents: List of retrieved documents
-            metadatas: List of metadata for documents
-            distances: List of distance scores
-            ids: List of document IDs
-            maximum_distance: Maximum distance threshold
+            results: ChromaDB query response dictionary
+            maximum_distance: Maximum distance threshold for filtering results
 
         Returns:
             Tuple of (documents, metadatas, distances, ids) filtered by threshold
         """
+        # Extract raw results from ChromaDB response
+        documents = results.get("documents", [[]])[0] if results.get("documents") else []
+        metadatas = results.get("metadatas", [[]])[0] if results.get("metadatas") else []
+        distances = results.get("distances", [[]])[0] if results.get("distances") else []
+        ids = results.get("ids", [[]])[0] if results.get("ids") else []
+
+        # Filter by distance threshold
         filtered_results = [
             (doc, meta, dist, doc_id)
             for doc, meta, dist, doc_id in zip(documents, metadatas, distances, ids)

@@ -1,7 +1,7 @@
 """Utilities for loading and processing documents and configuration files."""
 import os
 from pathlib import Path
-from typing import Iterator
+from typing import Iterator, Optional
 
 # Make YAML and LangChain imports optional so linting doesn't fail in environments
 # where these dependencies aren't installed. Provide lightweight fallbacks.
@@ -15,7 +15,7 @@ try:
 except ImportError:  # pragma: no cover - optional dependency
     TextLoader = None
 
-from logger import logger
+from log_manager import logger
 
 
 # Lightweight fallback loader that mimics the minimal interface used in this module
@@ -52,9 +52,7 @@ def _get_text_loader(path: str, encoding: str = "utf-8"):
     return _SimpleTextLoader(path, encoding=encoding)
 
 
-def load_documents(
-    folder: str, file_extensions: str | tuple[str, ...] = ".txt"
-) -> list[dict[str, str]]:
+def load_documents(folder: str, file_extensions: str | tuple[str, ...] = ".txt") -> list[dict[str, str]]:
     """
     Load documents from files using a TextLoader-like interface.
 
@@ -108,9 +106,7 @@ def load_yaml(file_path: str | Path) -> dict:
     clear message explaining the missing dependency.
     """
     if yaml is None:  # pragma: no cover - environment without PyYAML
-        raise RuntimeError(
-            "PyYAML is required to load YAML files. Install it with `pip install pyyaml`."
-        )
+        raise RuntimeError("PyYAML is required to load YAML files. Install it with `pip install pyyaml`.")
 
     file_path = Path(file_path)
     if not os.path.exists(file_path):
@@ -125,3 +121,38 @@ def load_yaml(file_path: str | Path) -> dict:
         raise FileNotFoundError(f"YAML file not found: {e}") from e
     except IOError as e:
         raise IOError(f"Error reading YAML file: {e}") from e
+
+
+def load_text_file(file_path: str | Path) -> Optional[str]:
+    """Load and return content from a markdown file.
+
+    Args:
+        file_path: Path to the markdown file to load
+
+    Returns:
+        File content as string, or None if loading fails
+    """
+    try:
+        with open(str(file_path), "r", encoding="utf-8") as file:
+            return file.read()
+    except IOError as e:
+        logger.error(f"Failed to load file {file_path}: {e}")
+        return None
+
+
+def read_file(file_path: str, encoding: str = "utf-8") -> str | None:
+    """
+    Read file contents safely.
+
+    Args:
+        file_path: Path to the file
+        encoding: File encoding (default: utf-8)
+
+    Returns:
+        File contents as string, or None if file not found
+    """
+    try:
+        with open(file_path, "r", encoding=encoding) as f:
+            return f.read()
+    except FileNotFoundError:
+        return None

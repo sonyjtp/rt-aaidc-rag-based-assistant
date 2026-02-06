@@ -8,17 +8,19 @@ from typing import Any
 import chromadb
 from chromadb.utils import embedding_functions
 
-from config import (
+from app_constants import (
     CHROMA_API_KEY_ENV,
-    CHROMA_COLLECTION_METADATA,
     CHROMA_DATABASE_ENV,
     CHROMA_TENANT_ENV,
     COLLECTION_NAME_DEFAULT,
+)
+from config import (
+    CHROMA_COLLECTION_METADATA,
     DISTANCE_THRESHOLD,
     RETRIEVAL_K,
     VECTOR_DB_EMBEDDING_MODEL,
 )
-from logger import logger
+from log_manager import logger
 
 
 class ChromaDBClient:

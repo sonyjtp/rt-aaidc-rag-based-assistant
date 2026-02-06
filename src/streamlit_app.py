@@ -5,11 +5,22 @@ import os
 import streamlit as st
 from dotenv import load_dotenv
 
-from config import DATA_DIR, DOCUMENT_TYPES
-from error_messages import SEARCH_MANAGER_INITIALIZATION_FAILED
+from app_constants import DATA_DIR
+from config import DOCUMENT_TYPES
+from error_messages import APPLICATION_INITIALIZATION_FAILED
 from file_utils import load_documents
-from logger import logger
+from log_manager import logger
 from rag_assistant import RAGAssistant
+from ui_constants import (
+    CLEAR_HISTORY_BUTTON,
+    MAIN_TITLE,
+    SESSION_ASSISTANT,
+    SESSION_CHAT_HISTORY,
+    SESSION_DOCUMENTS_LOADED,
+    SESSION_INITIALIZATION_ATTEMPTED,
+    SESSION_INITIALIZED,
+    SIDEBAR_TITLE,
+)
 from ui_utils import configure_page, load_custom_styles, validate_and_filter_topics
 
 # Set tokenizers parallelism to avoid warnings
@@ -22,57 +33,56 @@ load_dotenv()
 configure_page()
 load_custom_styles()
 
-
 # Initialize session state
-if "assistant" not in st.session_state:
-    st.session_state.assistant = None
-    st.session_state.documents_loaded = False
-    st.session_state.chat_history = []
-    st.session_state.initialized = False
-    st.session_state.initialization_attempted = False
+if SESSION_ASSISTANT not in st.session_state:
+    st.session_state[SESSION_ASSISTANT] = None
+    st.session_state[SESSION_DOCUMENTS_LOADED] = False
+    st.session_state[SESSION_CHAT_HISTORY] = []
+    st.session_state[SESSION_INITIALIZED] = False
+    st.session_state[SESSION_INITIALIZATION_ATTEMPTED] = False
 
 # Auto-initialize RAG assistant on app startup
-if not st.session_state.initialization_attempted:
-    st.session_state.initialization_attempted = True
+if not st.session_state[SESSION_INITIALIZATION_ATTEMPTED]:
+    st.session_state[SESSION_INITIALIZATION_ATTEMPTED] = True
     try:
         # Load documents silently without displaying status
         documents = load_documents(folder=DATA_DIR, file_extensions=DOCUMENT_TYPES)
 
         # Initialize the RAG assistant
-        st.session_state.assistant = RAGAssistant()
+        st.session_state[SESSION_ASSISTANT] = RAGAssistant()
         logger.info("RAG Assistant initialized")
 
         # Add documents to the RAG assistant's vector DB
-        st.session_state.assistant.add_documents(documents)
-        st.session_state.documents_loaded = True
-        st.session_state.initialized = True
+        st.session_state[SESSION_ASSISTANT].add_documents(documents)
+        st.session_state[SESSION_DOCUMENTS_LOADED] = True
+        st.session_state[SESSION_INITIALIZED] = True
     except Exception as e:  # pylint: disable=broad-exception-caught
-        st.session_state.initialized = False
+        st.session_state[SESSION_INITIALIZED] = False
         logger.error(f"Error initializing assistant: {e}")
-        st.error(SEARCH_MANAGER_INITIALIZATION_FAILED)
+        st.error(APPLICATION_INITIALIZATION_FAILED)
 
 # Sidebar configuration
 with st.sidebar:
-    st.title("⚙️ Configuration")
+    st.title(SIDEBAR_TITLE)
 
     st.divider()
 
     # Clear chat history button
-    if st.button("🗑️ Clear Chat History", use_container_width=True):
-        st.session_state.chat_history = []
+    if st.button(CLEAR_HISTORY_BUTTON, use_container_width=True):
+        st.session_state[SESSION_CHAT_HISTORY] = []
         st.rerun()
 
     st.divider()
 
     # Status section
     st.subheader("Status")
-    if st.session_state.initialized:
+    if st.session_state[SESSION_INITIALIZED]:
         st.success("✅ RAG Assistant Ready")
     else:
         st.warning("⏳ Initializing assistant...")
 
 # Main content area
-st.markdown("<h1 class='title-text'>🤖 RAG-Based Chatbot</h1>", unsafe_allow_html=True)
+st.markdown(f"<h1 class='title-text'>{MAIN_TITLE}</h1>", unsafe_allow_html=True)
 
 st.markdown(
     """
@@ -84,15 +94,15 @@ st.markdown(
 st.divider()
 
 # Chat interface
-if st.session_state.initialized:
+if st.session_state[SESSION_INITIALIZED]:
     # Display chat history only after first message
-    if st.session_state.chat_history:
+    if st.session_state[SESSION_CHAT_HISTORY]:
         st.subheader("Chat History")
 
         chat_container = st.container()
 
         with chat_container:
-            for message in st.session_state.chat_history:
+            for message in st.session_state[SESSION_CHAT_HISTORY]:
                 if message["role"] == "user":
                     st.markdown(
                         f"""
@@ -129,7 +139,7 @@ if st.session_state.initialized:
         with col1:
             user_input = st.text_input(
                 "Enter your question about the documents:",
-                placeholder="e.g., What is quantum computing? (Press Enter to send)",
+                placeholder="e.g., What are the major rivers in India? Or ask about Indian history, culture, etc.",
                 label_visibility="collapsed",
             )
 
@@ -139,26 +149,26 @@ if st.session_state.initialized:
     # Process user input outside the form
     if send_button and user_input:
         # Add user message to history
-        st.session_state.chat_history.append({"role": "user", "content": user_input})
+        st.session_state[SESSION_CHAT_HISTORY].append({"role": "user", "content": user_input})
         logger.info(f"User question: {user_input}")
 
         # Get assistant response
         status = st.status("🔍 Searching documents and generating response...", expanded=True)
         try:
-            response = st.session_state.assistant.invoke(user_input)
+            response = st.session_state[SESSION_ASSISTANT].invoke(user_input)
             logger.debug(f"Agent response received: {response[:100]}")
 
             # Validate and filter Related Topics - only allow topics from the knowledge base
             response = validate_and_filter_topics(response)
             logger.debug(f"Response after topic validation: {response[:100]}")
 
-            # Clean up the response - remove markdown headers and separators
+            # Clean up the response - remove Markdown headers and separators
             lines = response.split("\n")
             cleaned_lines = []
             skip_next = False  # pylint: disable=invalid-name
 
             for i, line in enumerate(lines):  # pylint: disable=unused-variable, invalid-name
-                # Skip markdown headers (lines starting with # or **)
+                # Skip Markdown headers (lines starting with # or **)
                 if line.strip().startswith("#") or line.strip().startswith("**"):
                     skip_next = True
                     continue
@@ -174,7 +184,7 @@ if st.session_state.initialized:
             CLEANED_RESPONSE = "\n".join(cleaned_lines).strip()  # pylint: disable=invalid-name
             logger.info(f"Cleaned response: {CLEANED_RESPONSE[:100]}")
 
-            st.session_state.chat_history.append({"role": "assistant", "content": CLEANED_RESPONSE})
+            st.session_state[SESSION_CHAT_HISTORY].append({"role": "assistant", "content": CLEANED_RESPONSE})
             status.update(label="✅ Response generated!", state="complete")
             st.rerun()
         except Exception as e:  # pylint: disable=broad-exception-caught
@@ -182,6 +192,5 @@ if st.session_state.initialized:
             logger.error(f"Error generating response: {e}")
             st.error("Error processing your question. Please try again.")
 else:
-    if not st.session_state.initialization_attempted:
-        msg = "RAG Assistant is initializing... Please wait and refresh if needed."  # pylint: disable=invalid-name
-        st.info(f"⏳ {msg}")
+    if not st.session_state[SESSION_INITIALIZATION_ATTEMPTED]:
+        st.info("⏳ RAG Assistant is initializing... Please wait and refresh if needed.")

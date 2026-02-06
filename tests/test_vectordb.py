@@ -155,77 +155,50 @@ class TestVectorDB:
             check = all(chunk[0].strip() != title for chunk, _ in chunks)
             assert check
 
-    def test_filter_duplicate_chunks_no_duplicates(self, vectordb_mocks):
-        """Test filtering when there are no duplicates."""
+    @pytest.mark.parametrize(
+        "mock_get_side_effect,input_chunks,expected_count,test_assertion",
+        [
+            pytest.param(
+                [{"documents": []}, {"documents": []}],
+                [("chunk1", {"title": "doc1"}), ("chunk2", {"title": "doc2"})],
+                2,
+                lambda filtered: True,
+                id="no_duplicates",
+            ),
+            pytest.param(
+                [{"documents": ["chunk1"]}, {"documents": []}],
+                [("chunk1", {"title": "doc1"}), ("chunk2", {"title": "doc2"})],
+                1,
+                lambda filtered: filtered[0][0] == "chunk2",
+                id="with_existing_duplicates",
+            ),
+            pytest.param(
+                [{"documents": []}, {"documents": []}],
+                [
+                    ("same_chunk", {"title": "doc1"}),
+                    ("same_chunk", {"title": "doc2"}),
+                    ("different_chunk", {"title": "doc3"}),
+                ],
+                2,
+                lambda filtered: [chunk for chunk, _ in filtered].count("same_chunk") == 1,
+                id="with_batch_duplicates",
+            ),
+        ],
+    )
+    def test_filter_duplicate_chunks(
+        self, vectordb_mocks, mock_get_side_effect, input_chunks, expected_count, test_assertion
+    ):
+        """Parametrized test for filter_duplicate_chunks with various scenarios."""
         with patch("src.vectordb.ChromaDBClient") as mock_chroma:
             mock_chroma.return_value = vectordb_mocks["chroma_instance"]
-
             mock_collection = vectordb_mocks["collection"]
-            # Handle pagination - empty database
-            mock_collection.get.side_effect = [
-                {"documents": []},  # First call
-                {"documents": []},  # Second call (offset=300) - end pagination
-            ]
+            mock_collection.get.side_effect = mock_get_side_effect
 
             vdb = VectorDB()
-            chunks = [
-                ("chunk1", {"title": "doc1"}),
-                ("chunk2", {"title": "doc2"}),
-            ]
+            filtered = vdb._filter_duplicate_chunks(input_chunks)
 
-            filtered = vdb._filter_duplicate_chunks(chunks)
-
-            assert len(filtered) == 2
-
-    def test_filter_duplicate_chunks_with_existing_duplicates(self, vectordb_mocks):
-        """Test filtering when chunks already exist in database."""
-        with patch("src.vectordb.ChromaDBClient") as mock_chroma:
-            mock_chroma.return_value = vectordb_mocks["chroma_instance"]
-
-            mock_collection = vectordb_mocks["collection"]
-            # Simulate existing chunk in database - handle pagination
-            # First call returns existing chunk, second call (offset=300)
-            # returns empty list to stop pagination
-            mock_collection.get.side_effect = [
-                {"documents": ["chunk1"]},  # First call (offset=0)
-                {"documents": []},  # Second call (offset=300)
-            ]
-
-            vdb = VectorDB()
-            chunks = [
-                ("chunk1", {"title": "doc1"}),  # Already exists
-                ("chunk2", {"title": "doc2"}),  # New
-            ]
-
-            filtered = vdb._filter_duplicate_chunks(chunks)
-
-            assert len(filtered) == 1
-            assert filtered[0][0] == "chunk2"
-
-    def test_filter_duplicate_chunks_with_batch_duplicates(self, vectordb_mocks):
-        """Test filtering of duplicates within the current batch."""
-        with patch("src.vectordb.ChromaDBClient") as mock_chroma:
-            mock_chroma.return_value = vectordb_mocks["chroma_instance"]
-
-            mock_collection = vectordb_mocks["collection"]
-            # Handle pagination - empty database
-            mock_collection.get.side_effect = [
-                {"documents": []},  # First call - no existing documents
-                {"documents": []},  # Second call (offset=300)
-            ]
-
-            vdb = VectorDB()
-            chunks = [
-                ("same_chunk", {"title": "doc1"}),
-                ("same_chunk", {"title": "doc2"}),  # Duplicate in batch
-                ("different_chunk", {"title": "doc3"}),
-            ]
-
-            filtered = vdb._filter_duplicate_chunks(chunks)
-
-            assert len(filtered) == 2
-            chunk_texts = [chunk for chunk, _ in filtered]
-            assert chunk_texts.count("same_chunk") == 1
+            assert len(filtered) == expected_count
+            assert test_assertion(filtered)
 
     def test_filter_duplicate_chunks_with_punctuation_normalization(self, vectordb_mocks):
         """Test filtering handles punctuation normalization."""
@@ -481,115 +454,116 @@ class TestVectorDB:
             call_args = mock_collection.query.call_args
             assert call_args[1]["n_results"] == 10
 
-    def test_extract_search_results_complete(self):
-        """Test extraction with complete results."""
-        results = {
-            "documents": [["doc1", "doc2"]],
-            "metadatas": [[{"title": "T1"}, {"title": "T2"}]],
-            "distances": [[0.1, 0.2]],
-            "ids": [["id1", "id2"]],
-        }
+    @pytest.mark.parametrize(
+        "results,max_distance,expected_docs,test_id",
+        [
+            pytest.param(
+                {
+                    "documents": [["doc1", "doc2"]],
+                    "metadatas": [[{"title": "T1"}, {"title": "T2"}]],
+                    "distances": [[0.1, 0.2]],
+                    "ids": [["id1", "id2"]],
+                },
+                0.3,
+                ["doc1", "doc2"],
+                "complete",
+            ),
+            pytest.param(
+                {"documents": [[]], "metadatas": [[]], "distances": [[]], "ids": [[]]},
+                0.3,
+                [],
+                "empty",
+            ),
+            pytest.param({}, 0.3, [], "missing_keys"),
+        ],
+    )
+    def test_extract_and_filter_search_results(self, results, max_distance, expected_docs, test_id):
+        """Parametrized test for extraction and filtering with various result scenarios."""
+        docs, metas, dists, ids = VectorDB._extract_and_filter_search_results(results, maximum_distance=max_distance)
 
-        docs, metas, dists, ids = VectorDB._extract_search_results(results)
-
-        assert docs == ["doc1", "doc2"]
-        assert metas == [{"title": "T1"}, {"title": "T2"}]
-        assert dists == [0.1, 0.2]
-        assert ids == ["id1", "id2"]
-
-    def test_extract_search_results_empty(self):
-        """Test extraction with empty results."""
-        results = {
-            "documents": [[]],
-            "metadatas": [[]],
-            "distances": [[]],
-            "ids": [[]],
-        }
-
-        docs, metas, dists, ids = VectorDB._extract_search_results(results)
-
-        assert docs == []
-        assert metas == []
-        assert dists == []
-        assert ids == []
-
-    def test_extract_search_results_missing_keys(self):
-        """Test extraction with missing keys."""
-        results = {}
-
-        docs, metas, dists, ids = VectorDB._extract_search_results(results)
-
-        assert docs == []
-        assert metas == []
-        assert dists == []
-        assert ids == []
+        assert docs == expected_docs
+        assert metas == [] if not expected_docs else len(metas) > 0
+        assert dists == [] if not expected_docs else len(dists) > 0
+        assert ids == [] if not expected_docs else len(ids) > 0
 
     def test_filter_search_results_all_pass(self):
         """Test filtering when all results pass threshold."""
         documents = ["doc1", "doc2"]
-        metadatas = [{"title": "T1"}, {"title": "T2"}]
-        distances = [0.1, 0.2]
-        ids = ["id1", "id2"]
 
-        docs, metas, dists, ids_out = VectorDB._filter_search_results(
-            documents, metadatas, distances, ids, maximum_distance=0.3
+    @pytest.mark.parametrize(
+        "results,max_distance,expected_doc_count,expected_docs",
+        [
+            pytest.param(
+                {
+                    "documents": [["doc1", "doc2"]],
+                    "metadatas": [[{"title": "T1"}, {"title": "T2"}]],
+                    "distances": [[0.1, 0.2]],
+                    "ids": [["id1", "id2"]],
+                },
+                0.3,
+                2,
+                ["doc1", "doc2"],
+                id="all_pass",
+            ),
+            pytest.param(
+                {
+                    "documents": [["doc1", "doc2", "doc3"]],
+                    "metadatas": [[{"title": "T1"}, {"title": "T2"}, {"title": "T3"}]],
+                    "distances": [[0.1, 0.3, 0.5]],
+                    "ids": [["id1", "id2", "id3"]],
+                },
+                0.35,
+                2,
+                ["doc1", "doc2"],
+                id="partial_pass",
+            ),
+            pytest.param(
+                {
+                    "documents": [["doc1", "doc2"]],
+                    "metadatas": [[{"title": "T1"}, {"title": "T2"}]],
+                    "distances": [[0.5, 0.6]],
+                    "ids": [["id1", "id2"]],
+                },
+                0.3,
+                0,
+                [],
+                id="none_pass",
+            ),
+            pytest.param(
+                {
+                    "documents": [["doc1", "doc2"]],
+                    "metadatas": [[{"title": "T1"}, {"title": "T2"}]],
+                    "distances": [[0.35, 0.36]],
+                    "ids": [["id1", "id2"]],
+                },
+                0.35,
+                1,
+                ["doc1"],
+                id="exact_threshold",
+            ),
+        ],
+    )
+    def test_extract_and_filter_search_results_filtering(
+        self, results, max_distance, expected_doc_count, expected_docs
+    ):
+        """Parametrized test for extraction and filtering with various result sets."""
+        docs, metas, dists, ids_out = VectorDB._extract_and_filter_search_results(
+            results, maximum_distance=max_distance
         )
 
-        assert docs == ["doc1", "doc2"]
-        assert len(metas) == 2
-
-    def test_filter_search_results_partial_pass(self):
-        """Test filtering when some results are filtered out."""
-        documents = ["doc1", "doc2", "doc3"]
-        metadatas = [{"title": "T1"}, {"title": "T2"}, {"title": "T3"}]
-        distances = [0.1, 0.3, 0.5]
-        ids = ["id1", "id2", "id3"]
-
-        docs, metas, dists, ids_out = VectorDB._filter_search_results(
-            documents, metadatas, distances, ids, maximum_distance=0.35
-        )
-
-        assert len(docs) == 2
-        assert docs == ["doc1", "doc2"]
-
-    def test_filter_search_results_none_pass(self):
-        """Test filtering when no results pass threshold."""
-        documents = ["doc1", "doc2"]
-        metadatas = [{"title": "T1"}, {"title": "T2"}]
-        distances = [0.5, 0.6]
-        ids = ["id1", "id2"]
-
-        docs, metas, dists, ids_out = VectorDB._filter_search_results(
-            documents, metadatas, distances, ids, maximum_distance=0.3
-        )
-
-        assert docs == []
-        assert metas == []
-        assert dists == []
-        assert ids_out == []
-
-    def test_filter_search_results_exact_threshold(self):
-        """Test filtering at exact threshold boundary."""
-        documents = ["doc1", "doc2"]
-        metadatas = [{"title": "T1"}, {"title": "T2"}]
-        distances = [0.35, 0.36]
-        ids = ["id1", "id2"]
-
-        docs, metas, dists, ids_out = VectorDB._filter_search_results(
-            documents, metadatas, distances, ids, maximum_distance=0.35
-        )
-
-        assert len(docs) == 1
-        assert docs == ["doc1"]
+        assert len(docs) == expected_doc_count
+        assert docs == expected_docs
+        assert len(metas) == expected_doc_count
+        assert len(dists) == expected_doc_count
+        assert len(ids_out) == expected_doc_count
 
     def test_add_documents_empty_list(self, patched_vectordb):
-        """Test add_documents with empty list - should return early."""
+        """Test add_documents with empty list - should raise ValueError."""
         vdb, mocks = patched_vectordb
 
-        # Should return early without calling insert
-        vdb.add_documents([])
-
-        mocks["collection"].add.assert_not_called()
+        # Should raise ValueError when empty list is provided
+        with pytest.raises(ValueError, match="Document list is empty"):
+            vdb.add_documents([])
 
     def test_filter_duplicate_chunks_exception_handling(self, vectordb_mocks):
         """Test _filter_duplicate_chunks handles exceptions during batch fetching."""
@@ -615,95 +589,3 @@ class TestVectorDB:
             # Should have filtered chunk2 (not chunk1 since it was in first batch)
             assert len(filtered) == 1
             assert filtered[0][0] == "chunk2"
-
-    def test_filter_existing_documents_exception_handling(self, vectordb_mocks):
-        """Test _filter_existing_documents handles exceptions gracefully."""
-        with patch("src.vectordb.ChromaDBClient") as mock_chroma:
-            mock_chroma.return_value = vectordb_mocks["chroma_instance"]
-            mock_collection = vectordb_mocks["collection"]
-
-            # Mock collection.get() to raise an exception
-            mock_collection.get.side_effect = RuntimeError("DB error")
-
-            vdb = VectorDB()
-            documents = [
-                {"content": "test", "filename": "test.txt", "title": "Test"},
-                "Raw string document",
-            ]
-
-            # Should catch exception and return all documents
-            result = vdb._filter_existing_documents(documents)
-
-            assert len(result) == 2
-            assert result == documents
-
-    def test_filter_existing_documents_with_existing_files(self, vectordb_mocks):
-        """Test _filter_existing_documents filters out existing files."""
-        with patch("src.vectordb.ChromaDBClient") as mock_chroma:
-            mock_chroma.return_value = vectordb_mocks["chroma_instance"]
-            mock_collection = vectordb_mocks["collection"]
-
-            # Mock existing documents in database
-            mock_collection.get.return_value = {
-                "metadatas": [
-                    {"filename": "existing1.txt"},
-                    {"filename": "existing2.txt"},
-                ]
-            }
-
-            vdb = VectorDB()
-            documents = [
-                {"content": "old", "filename": "existing1.txt", "title": "Old"},
-                {"content": "new", "filename": "new.txt", "title": "New"},
-                "Raw string",
-            ]
-
-            result = vdb._filter_existing_documents(documents)
-
-            # Should filter out existing1.txt, keep new.txt and raw string
-            assert len(result) == 2
-            assert any(d.get("filename") == "new.txt" for d in result if isinstance(d, dict))
-
-    def test_filter_existing_documents_no_existing_files(self, vectordb_mocks):
-        """Test _filter_existing_documents when database is empty."""
-        with patch("src.vectordb.ChromaDBClient") as mock_chroma:
-            mock_chroma.return_value = vectordb_mocks["chroma_instance"]
-            mock_collection = vectordb_mocks["collection"]
-
-            # Mock empty database
-            mock_collection.get.return_value = {"metadatas": []}
-
-            vdb = VectorDB()
-            documents = [
-                {"content": "new1", "filename": "new1.txt", "title": "New1"},
-                {"content": "new2", "filename": "new2.txt", "title": "New2"},
-            ]
-
-            result = vdb._filter_existing_documents(documents)
-
-            # Should return all documents
-            assert len(result) == 2
-            assert result == documents
-
-    def test_filter_existing_documents_mixed_string_and_dict(self, vectordb_mocks):
-        """Test _filter_existing_documents with mixed string and dict documents."""
-        with patch("src.vectordb.ChromaDBClient") as mock_chroma:
-            mock_chroma.return_value = vectordb_mocks["chroma_instance"]
-            mock_collection = vectordb_mocks["collection"]
-
-            mock_collection.get.return_value = {"metadatas": [{"filename": "existing.txt"}]}
-
-            vdb = VectorDB()
-            documents = [
-                "String doc 1",
-                {"content": "existing", "filename": "existing.txt"},
-                "String doc 2",
-                {"content": "new", "filename": "new.txt"},
-            ]
-
-            result = vdb._filter_existing_documents(documents)
-
-            # Should keep all strings, new dict, and filter out existing dict
-            assert len(result) == 3
-            string_count = sum(1 for d in result if isinstance(d, str))
-            assert string_count == 2

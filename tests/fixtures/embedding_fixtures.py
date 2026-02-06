@@ -14,9 +14,7 @@ def embedding_mocks():
     """Fixture providing mocked embedding components."""
     with patch("src.embeddings.HuggingFaceEmbeddings") as mock_embeddings, patch(
         "src.embeddings.torch.cuda.is_available"
-    ) as mock_cuda, patch(
-        "src.embeddings.torch.backends.mps.is_available"
-    ) as mock_mps, patch(
+    ) as mock_cuda, patch("src.embeddings.torch.backends.mps.is_available") as mock_mps, patch(
         "src.embeddings.logger"
     ) as mock_logger:
         mock_instance = MagicMock()

@@ -44,9 +44,7 @@ class TestSlidingWindowMemory:
     )
     def test_initialization(self, window_size, memory_key, expected_maxlen):
         """Parametrized test for initialization with various configurations."""
-        memory = SlidingWindowMemory(
-            llm=self.mock_llm, window_size=window_size, memory_key=memory_key
-        )
+        memory = SlidingWindowMemory(llm=self.mock_llm, window_size=window_size, memory_key=memory_key)
 
         assert memory.llm == self.mock_llm
         assert memory.window_size == window_size
@@ -75,9 +73,7 @@ class TestSlidingWindowMemory:
         memory = SlidingWindowMemory(llm=self.mock_llm, window_size=5)
 
         for i in range(3):
-            memory.save_context(
-                inputs={"input": f"Question {i}"}, outputs={"output": f"Answer {i}"}
-            )
+            memory.save_context(inputs={"input": f"Question {i}"}, outputs={"output": f"Answer {i}"})
 
         assert len(memory.messages) == 3
         assert memory.messages[-1]["input"] == "Question 2"
@@ -107,9 +103,7 @@ class TestSlidingWindowMemory:
         """Parametrized test for text extraction in save_context."""
         memory = SlidingWindowMemory(llm=self.mock_llm, window_size=5)
 
-        memory.save_context(
-            inputs={"input": input_text}, outputs={"output": output_text}
-        )
+        memory.save_context(inputs={"input": input_text}, outputs={"output": output_text})
 
         assert memory.messages[0]["input"] == input_text
         assert memory.messages[0]["output"] == output_text
@@ -200,9 +194,7 @@ class TestSlidingWindowMemory:
         memory = SlidingWindowMemory(llm=self.mock_llm, window_size=3)
 
         for i in range(3):
-            memory.save_context(
-                inputs={"input": f"Question {i}"}, outputs={"output": f"Answer {i}"}
-            )
+            memory.save_context(inputs={"input": f"Question {i}"}, outputs={"output": f"Answer {i}"})
 
         call_args = self.mock_llm.invoke.call_args[0][0]
         assert all(f"Question {i}" in call_args for i in range(3))
@@ -304,9 +296,7 @@ class TestSlidingWindowMemory:
         self.mock_llm.invoke.return_value = MagicMock(content="Summary")
         memory = SlidingWindowMemory(llm=self.mock_llm, window_size=5)
 
-        memory.save_context(
-            inputs={"input": message_content}, outputs={"output": message_content}
-        )
+        memory.save_context(inputs={"input": message_content}, outputs={"output": message_content})
 
         assert memory.messages[0]["input"] == message_content
         assert memory.messages[0]["output"] == message_content
@@ -344,14 +334,10 @@ class TestSlidingWindowMemory:
         memory = SlidingWindowMemory(llm=self.mock_llm, window_size=2)
 
         for i in range(2):
-            memory.save_context(
-                inputs={"input": f"Q1-{i}"}, outputs={"output": f"A1-{i}"}
-            )
+            memory.save_context(inputs={"input": f"Q1-{i}"}, outputs={"output": f"A1-{i}"})
 
         for i in range(2):
-            memory.save_context(
-                inputs={"input": f"Q2-{i}"}, outputs={"output": f"A2-{i}"}
-            )
+            memory.save_context(inputs={"input": f"Q2-{i}"}, outputs={"output": f"A2-{i}"})
 
         assert memory.summary != ""
         assert len(memory.messages) == 0

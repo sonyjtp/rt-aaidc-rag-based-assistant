@@ -1,19 +1,25 @@
 """Query processing and context management for RAG assistant."""
-
-import config as config_mod
-import file_utils as file_utils_mod
-import logger as logger_mod
-
-# Re-export constants for backwards compatibility within this module
-DISTANCE_THRESHOLD = config_mod.DISTANCE_THRESHOLD
-MEMORY_KEY_PARAM = config_mod.CHAT_HISTORY
-QUERY_AUGMENTATION_PATH = config_mod.QUERY_AUGMENTATION_PATH
-
-logger = logger_mod.logger
+import file_utils
+from app_constants import CHAT_HISTORY, NO_CHAT_HISTORY, QUERY_AUGMENTATION_PATH
+from config import DISTANCE_THRESHOLD
+from log_manager import logger
 
 
 class QueryProcessor:
-    """Handles query augmentation, context building, and validation."""
+    """Handles query augmentation, context building, and validation.
+
+    Steps:
+    1. Load query augmentation configuration from YAML file.
+    2. Augment user queries with recent conversation context for follow-up questions.
+    3. Build context strings based on distance thresholds.
+    4. Validate the relevance of retrieved context using an LLM.
+
+    Features:
+    - Uses keywords to identify follow-up vs. new topic questions.
+    - Limits context augmentation for new topic questions.
+    - Employs LLM for semantic validation of context relevance.
+
+    """
 
     def __init__(self, memory_manager=None, llm=None):
         """Initialize the query processor."""
@@ -26,10 +32,9 @@ class QueryProcessor:
     def _load_augmentation_config(self) -> None:
         """Load query augmentation configuration from YAML file."""
         try:
-            config = file_utils_mod.load_yaml(QUERY_AUGMENTATION_PATH)
+            config = file_utils.load_yaml(QUERY_AUGMENTATION_PATH)
             self.follow_up_keywords = config.get("follow_up_keywords", [])
             self.new_topic_keywords = config.get("new_topic_keywords", [])
-            logger.info("Query augmentation configuration loaded successfully.")
         except FileNotFoundError:
             logger.warning("query-augmentation.yaml not found. Using default keywords.")
         except Exception as e:  # pylint: disable=broad-exception-caught
@@ -39,7 +44,7 @@ class QueryProcessor:
         """
         Augment the user's query with recent conversation context.
         This helps resolve pronouns and references in follow-up questions.
-        However, for new topic questions or very different queries, limit augmentation.
+        However, for new topic questions or very different queries, we avoid augmentation.
 
         Args:
             query: Original user query
@@ -48,15 +53,16 @@ class QueryProcessor:
             Augmented query that includes recent context (if appropriate)
         """
         if not self.memory_manager:
+            logger.warning("Memory manager not available for query augmentation. Using original query.")
             return query
-
+        result_query = query
         try:
             memory_vars = self.memory_manager.get_memory_variables()
-            chat_history = memory_vars.get(MEMORY_KEY_PARAM, "")
+            chat_history = memory_vars.get(CHAT_HISTORY, "")
 
-            if chat_history and chat_history != "No previous conversation context.":
+            if chat_history and chat_history != NO_CHAT_HISTORY:
                 # Check if this looks like a follow-up question or new topic
-                # Keywords are loaded from config/query-augmentation.yaml
+
                 query_lower = query.lower()
                 is_follow_up = any(keyword in query_lower for keyword in self.follow_up_keywords)
                 is_new_topic = any(keyword in query_lower for keyword in self.new_topic_keywords)
@@ -64,11 +70,12 @@ class QueryProcessor:
                 # If question starts with "what are/is" or similar, it's likely a new topic
                 # unless it contains follow-up keywords
                 if is_new_topic and not is_follow_up:
-                    # New topic question - return without augmentation
-                    logger.debug("New topic question detected - using original query for clean search")
-                    return query
+                    # New topic question - return without augmentation. result_query remains as-is
+                    logger.info("New topic question detected. Using original query for clean search.")
 
-                if is_follow_up:
+                elif is_follow_up:
+                    logger.info("Follow-up question detected. Augmenting query with recent context.")
+
                     # For follow-ups, include only the last user question to avoid biasing search
                     # Extract the last user message from chat history
                     lines = chat_history.strip().split("\n")
@@ -79,23 +86,19 @@ class QueryProcessor:
                             break
 
                     if last_user_question:
-                        augmented_query = f"Previous question: {last_user_question}\n\nCurrent question: {query}"
+                        # Augment query with last user question
+                        result_query = f"Previous question: {last_user_question}\n\nCurrent question: {query}"
                         logger.debug("Query augmented with last user question for follow-up")
-                        return augmented_query
-
-                    # Fallback to full context if we can't extract
-                    augmented_query = f"{chat_history}\n\nCurrent question: {query}"
-                    logger.debug("Query augmented with full chat history context (fallback)")
-                    return augmented_query
-
-                # Default: treat as new topic for clean search
-                logger.debug("Query treated as new topic - using original query for clean search")
-                return query
-
+                    else:
+                        # Fallback to full context if we can't extract
+                        result_query = f"{chat_history}\n\nCurrent question: {query}"
+                        logger.debug("Query augmented with full chat history context (fallback)")
+                else:
+                    # Default: treat as new topic for clean search. result_query remains as-is
+                    logger.debug("Query treated as new topic - using original query for clean search")
         except Exception as e:  # pylint: disable=broad-exception-caught
             logger.warning(f"Could not augment query with context: {e}")
-
-        return query
+        return result_query
 
     @staticmethod
     def build_context(flat_docs: list[str], flat_distances: list[float]) -> str:
@@ -138,18 +141,20 @@ class QueryProcessor:
                 # This is a follow-up question with augmented context
                 validation_prompt = (
                     f"Given the conversation context, does the following retrieved context "
-                    f"contain information that directly addresses the user's follow-up question?\n\n"
+                    f"contain relevant information related to the user's follow-up question?\n\n"
                     f"Conversation: {search_query}\n\n"
-                    f"Retrieved Context: {context[:500]}\n\n"
-                    f"Answer with only 'YES' or 'NO'."
+                    f"Retrieved Context: {context[:1000]}\n\n"
+                    f"Respond with YES or NO."
                 )
             else:
-                # Regular question validation
+                # Regular question validation - use more lenient criteria
                 validation_prompt = (
-                    f"Does the following context contain information that directly "
-                    f"addresses this question? Answer with only 'YES' or 'NO'.\n\n"
+                    f"Does the following context contain information that is relevant to "
+                    f"answering or addressing this question? Be inclusive - if the context "
+                    f"discusses related topics, answer YES.\n\n"
                     f"Question: {query}\n\n"
-                    f"Context: {context[:500]}"  # Limit to first 500 chars for speed
+                    f"Context: {context[:1000]}\n\n"
+                    f"Answer: YES or NO"
                 )
 
             result = self.llm.invoke(validation_prompt)
@@ -158,7 +163,11 @@ class QueryProcessor:
             # For AIMessage objects, extract content attribute
             if hasattr(result, "content"):
                 result_str = result.content
-            is_relevant = "YES" in result_str.upper()
+
+            # More lenient parsing: look for YES anywhere in response
+            result_upper = result_str.upper()
+            is_relevant = "YES" in result_upper and "NO" not in result_upper.split("YES")[0]
+            logger.debug(f"Validation response: {result_str.strip()}")
             logger.info(f"Context relevance validation: {is_relevant}")
             return is_relevant
         except Exception as e:  # pylint: disable=broad-exception-caught

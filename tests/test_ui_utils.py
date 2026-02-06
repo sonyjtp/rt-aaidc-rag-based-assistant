@@ -16,9 +16,9 @@ from src.ui_utils import (
 @pytest.fixture
 def ui_mocks():
     """Fixture providing mocked UI components."""
-    with patch("src.ui_utils.st") as mock_st, patch(
-        "src.ui_utils.os.path.dirname"
-    ) as mock_dirname, patch("src.ui_utils.os.path.abspath") as mock_abspath:
+    with patch("src.ui_utils.st") as mock_st, patch("src.ui_utils.os.path.dirname") as mock_dirname, patch(
+        "src.ui_utils.os.path.abspath"
+    ) as mock_abspath:
         mock_abspath.return_value = "/project/src/ui_utils.py"
         mock_dirname.side_effect = [
             "/project/src",  # dirname of __file__
@@ -67,9 +67,7 @@ class TestUIUtils:
             (":root { --primary-color: #007bff; }", "--primary-color"),
         ],
     )
-    def test_load_custom_styles_various_css(
-        self, ui_mocks, css_content, expected_in_output
-    ):
+    def test_load_custom_styles_various_css(self, ui_mocks, css_content, expected_in_output):
         """Parametrized test for various CSS content types."""
         with patch("builtins.open", mock_open(read_data=css_content)):
             load_custom_styles()
@@ -201,9 +199,7 @@ class TestUIUtils:
             (["file1.py", "file2.md", "file3.json"]),
         ],
     )
-    def test_get_valid_topics_empty_or_no_txt(
-        self, mock_listdir, mock_isdir, listdir_return
-    ):
+    def test_get_valid_topics_empty_or_no_txt(self, mock_listdir, mock_isdir, listdir_return):
         """Parametrized test for empty directory and no .txt files."""
         mock_isdir.return_value = True
         mock_listdir.return_value = listdir_return

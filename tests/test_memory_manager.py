@@ -59,13 +59,11 @@ class TestMemoryManager:
             ("summary", "SummaryMemory"),
         ],
     )
-    def test_memory_initialization_error(
-        self, combined_fixtures, strategy, memory_class
-    ):
+    def test_memory_initialization_error(self, combined_fixtures, strategy, memory_class):
         """Test memory initialization failure falls back to no memory."""
-        with patch(
-            f"src.memory_manager.{memory_class}", side_effect=ValueError("Init error")
-        ), patch("src.memory_manager.MEMORY_STRATEGY", strategy):
+        with patch(f"src.memory_manager.{memory_class}", side_effect=ValueError("Init error")), patch(
+            "src.memory_manager.MEMORY_STRATEGY", strategy
+        ):
             manager = MemoryManager(llm=combined_fixtures["mock_llm"])
             assert manager.memory is None
 
@@ -98,13 +96,9 @@ class TestMemoryManager:
             ({"chat_history": "Conversation", "summary": "Summary text"}, 2),
         ],
     )
-    def test_get_memory_variables(
-        self, combined_fixtures, memory_variables, expected_keys
-    ):
+    def test_get_memory_variables(self, combined_fixtures, memory_variables, expected_keys):
         """Test retrieving memory variables with different key counts."""
-        combined_fixtures[
-            "mock_memory"
-        ].load_memory_variables.return_value = memory_variables
+        combined_fixtures["mock_memory"].load_memory_variables.return_value = memory_variables
         manager = MemoryManager(llm=combined_fixtures["mock_llm"])
         manager.memory = combined_fixtures["mock_memory"]
         variables = manager.get_memory_variables()
@@ -122,9 +116,7 @@ class TestMemoryManager:
             ),
         ],
     )
-    def test_get_memory_variables_edge_cases(
-        self, combined_fixtures, scenario, memory_setup
-    ):
+    def test_get_memory_variables_edge_cases(self, combined_fixtures, scenario, memory_setup):
         """Test get_memory_variables in edge cases: no memory or load error."""
         manager = MemoryManager(llm=combined_fixtures["mock_llm"])
         if scenario == "no_memory":
@@ -166,9 +158,7 @@ class TestMemoryManager:
             (3, 3),
         ],
     )
-    def test_multi_turn_conversation(
-        self, combined_fixtures, num_messages, expected_calls
-    ):
+    def test_multi_turn_conversation(self, combined_fixtures, num_messages, expected_calls):
         """Test multi-turn conversation with varying message counts."""
         combined_fixtures["mock_memory"].load_memory_variables.return_value = {
             "history": "Previous conversation..."
@@ -179,9 +169,7 @@ class TestMemoryManager:
         for i in range(num_messages):
             manager.add_message(input_text=f"Question {i}", output_text=f"Answer {i}")
 
-        assert (
-            combined_fixtures["mock_memory"].save_context.call_count == expected_calls
-        )
+        assert combined_fixtures["mock_memory"].save_context.call_count == expected_calls
 
     # ========================================================================
     # EXCEPTION HANDLING TESTS
@@ -222,18 +210,14 @@ class TestMemoryManager:
         ],
     )
     @pytest.mark.filterwarnings("ignore::UserWarning")
-    def test_exception_handling(
-        self, combined_fixtures, scenario, patches, setup, assertions
-    ):
+    def test_exception_handling(self, combined_fixtures, scenario, patches, setup, assertions):
         """Test exception handling in various scenarios."""
         manager = None
         match scenario:
             case "missing_config":
-                with patch(
-                    "src.memory_manager.MEMORY_STRATEGIES_FPATH", "/nonexistent"
-                ), patch("src.memory_manager.MEMORY_STRATEGY", "none"), patch(
-                    "builtins.open", side_effect=FileNotFoundError("Config not found")
-                ):
+                with patch("src.memory_manager.MEMORY_STRATEGIES_FPATH", "/nonexistent"), patch(
+                    "src.memory_manager.MEMORY_STRATEGY", "none"
+                ), patch("builtins.open", side_effect=FileNotFoundError("Config not found")):
                     manager = MemoryManager(llm=combined_fixtures["mock_llm"])
             case "save_error":
                 with patch("src.memory_manager.MEMORY_STRATEGY", "none"):

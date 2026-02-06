@@ -25,9 +25,7 @@ class TestFileUtils:
         with tempfile.TemporaryDirectory() as temp_dir:
             test_file = os.path.join(temp_dir, "test.txt")
             with open(test_file, "w", encoding="utf-8") as f:
-                f.write(
-                    "Test Title\nTags: test, document\nMultiple\nLines\nOf\nContent"
-                )
+                f.write("Test Title\nTags: test, document\nMultiple\nLines\nOf\nContent")
 
             docs = load_documents(temp_dir)
 
@@ -41,9 +39,7 @@ class TestFileUtils:
         """Test loading multiple documents from a directory."""
         with tempfile.TemporaryDirectory() as temp_dir:
             for i in range(3):
-                with open(
-                    os.path.join(temp_dir, f"doc{i}.txt"), "w", encoding="utf-8"
-                ) as f:
+                with open(os.path.join(temp_dir, f"doc{i}.txt"), "w", encoding="utf-8") as f:
                     f.write(f"Document {i}\nContent {i}")
 
             docs = load_documents(temp_dir)
@@ -60,9 +56,7 @@ class TestFileUtils:
             (".json", 0, []),
         ],
     )
-    def test_load_documents_with_file_extensions(
-        self, extensions, expected_count, expected_files
-    ):
+    def test_load_documents_with_file_extensions(self, extensions, expected_count, expected_files):
         """Parametrized test for loading documents with various file extensions."""
         with tempfile.TemporaryDirectory() as temp_dir:
             files = {
@@ -90,9 +84,7 @@ class TestFileUtils:
             ("empty.txt\n", "empty.txt", ""),
         ],
     )
-    def test_load_documents_extract_metadata(
-        self, content, expected_title, expected_tags
-    ):
+    def test_load_documents_extract_metadata(self, content, expected_title, expected_tags):
         """Parametrized test for title and tags extraction."""
         with tempfile.TemporaryDirectory() as temp_dir:
             with open(os.path.join(temp_dir, "test.txt"), "w", encoding="utf-8") as f:
@@ -166,9 +158,7 @@ class TestFileUtils:
             with patch("src.file_utils.TextLoader") as mock_loader:
                 # Create appropriate exception instance
                 if exception_class == UnicodeDecodeError:
-                    exception_instance = UnicodeDecodeError(
-                        "utf-8", b"", 0, 1, "invalid continuation byte"
-                    )
+                    exception_instance = UnicodeDecodeError("utf-8", b"", 0, 1, "invalid continuation byte")
                 elif exception_class == IOError:
                     exception_instance = IOError("Permission denied")
                 else:
@@ -204,9 +194,7 @@ class TestFileUtils:
         with tempfile.TemporaryDirectory() as temp_dir:
             with open(os.path.join(temp_dir, "valid.txt"), "w", encoding="utf-8") as f:
                 f.write("Valid Title\nContent")
-            with open(
-                os.path.join(temp_dir, "another.txt"), "w", encoding="utf-8"
-            ) as f:
+            with open(os.path.join(temp_dir, "another.txt"), "w", encoding="utf-8") as f:
                 f.write("Another\nContent")
 
             with patch("src.file_utils.TextLoader") as mock_loader:
@@ -259,9 +247,7 @@ class TestFileUtils:
             ),
         ],
     )
-    def test_load_yaml_file_access_errors(
-        self, setup_func, exception_types, description
-    ):
+    def test_load_yaml_file_access_errors(self, setup_func, exception_types, description):
         """Parametrized test for YAML file access and encoding errors."""
         with tempfile.TemporaryDirectory() as temp_dir:
             yaml_file = os.path.join(temp_dir, "test.yaml")
@@ -367,9 +353,7 @@ class TestFileUtils:
             ("float: 123.45\nstring_float: '123.45'", "string_float", "123.45", str),
         ],
     )
-    def test_load_yaml_value_types(
-        self, yaml_content, key, expected_value, expected_type
-    ):
+    def test_load_yaml_value_types(self, yaml_content, key, expected_value, expected_type):
         """Parametrized test for YAML value type handling."""
         with tempfile.TemporaryDirectory() as temp_dir:
             yaml_file = os.path.join(temp_dir, "values.yaml")

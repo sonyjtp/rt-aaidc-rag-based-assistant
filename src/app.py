@@ -4,9 +4,10 @@ import os
 # Optional dotenv import (not required in all environments)
 from dotenv import load_dotenv
 
-from config import DATA_DIR, DOCUMENT_TYPES
+from app_constants import DATA_DIR
+from config import DOCUMENT_TYPES
 from file_utils import load_documents
-from logger import logger
+from log_manager import logger
 from rag_assistant import RAGAssistant
 
 # Ensure tokenizers won't use parallelism
@@ -22,12 +23,11 @@ def main():
     testing or in environments where a web UI is not feasible.
 
     Steps:
-    1. Load documents from the data directory
-    2. Initialize the RAG assistant
-    3. Add documents to the RAG assistant's vector DB
-    4. Enter a loop to accept user questions and provide answers
-    5. Handle errors gracefully and log them
-    6. Exit on user command
+    1. Load documents from the data directory.
+    2. Initialize the RAG assistant.
+    3. Add documents to the assistant's vector database.
+    4. Enter a loop to ask questions and get answers from the assistant.
+    5. Exit the loop when the user types 'q'.
     """
 
     try:

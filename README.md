@@ -5,7 +5,7 @@
 [![Python Version](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-CC%20BY--NC--SA%204.0-blue.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)]()
-[![Code Coverage](https://img.shields.io/badge/coverage-94.90%25-brightgreen.svg)]()
+[![Code Coverage](https://img.shields.io/badge/coverage-94.40%25-brightgreen.svg)]()
 [![Pylint](https://github.com/sonyjtp/rag-based-assistant/actions/workflows/pylint.yml/badge.svg)](https://github.com/sonyjtp/rag-based-assistant/actions/workflows/pylint.yml)
 
 [Quick Start](#-quick-start) • [Features](#-features) • [Installation](#-installation)
@@ -53,7 +53,7 @@ This project implements a **Retrieval-Augmented Generation (RAG)** chatbot that:
 ### Core RAG Capabilities
 - ✅ Document loading from text files
 - ✅ Intelligent text chunking with overlap
-- ✅ Semantic search using embeddings
+- ✅ Semantic search using ChromaDB's embedding-based similarity search
 - ✅ Context-aware question answering
 - ✅ Document metadata preservation (title, tags, filename)
 
@@ -62,19 +62,12 @@ This project implements a **Retrieval-Augmented Generation (RAG)** chatbot that:
 - ✅ **Sliding Window Memory** (summarization_sliding_window) — default: keeps recent messages plus a running summarized history to stay within token limits.
 - ✅ **Summarization** (summary): Maintains a running summary of the conversation.
 - ✅ **None** (none): Disables conversation memory.
-- ✅ **Memory Strategy Switching**: Change via `MEMORY_STRATEGY` in `src/config.py` or by toggling `enabled` in `config/memory_strategies.yaml`.
 
 ### LLM Integration
 - ✅ **OpenAI GPT-4** / GPT-4o-mini
 - ✅ **Groq Llama 3.1** (fast inference)
 - ✅ **Google Gemini** Pro
 - ✅ Automatic fallback to next available provider
-- ✅ Device detection & selection — Automatically picks the best available compute device for model inference and embeddings
-
-**Device Detection order**:
-  1. `CUDA` — NVIDIA GPUs (highest performance).
-  2. `MPS` — Apple Metal Performance Shaders on Apple Silicon (macOS).
-  3. `CPU` — Fallback when no GPU acceleration is available.
 
 ### Reasoning Strategies
 
@@ -316,16 +309,12 @@ streamlit run src/streamlit_app.py
         │ ┌─────────────────────────────────┐  │
         │ │  LLM Integration                │  │
         │ │  ┌──────────────────────────────┤  │
-        │ │  │ Provider Selection:          │  │
-        │ │  │ • OpenAI (GPT-4/4o-mini)     │  │
-        │ │  │ • Groq (Llama 3.1)           │  │
-        │ │  │ • Google Gemini Pro          │  │
-        │ │  │ • Auto-fallback logic        │  │
+        │ │  Provider Selection:            │  │
+        │ │  • OpenAI (GPT-4/4o-mini)       │  │
+        │ │  • Groq (Llama 3.1)             │  │
+        │ │  • Google Gemini Pro            │  │
+        │ │  • Auto-fallback logic          │  │
         │ │  └──────────────────────────────┤  │
-        │ │  Device Detection:              │  │
-        │ │  1. CUDA (NVIDIA GPUs)          │  │
-        │ │  2. MPS (Apple Metal)           │  │
-        │ │  3. CPU (fallback)              │  │
         │ └─────────────────────────────────┘  │
         └────────────────────┬─────────────────┘
                              │
@@ -349,10 +338,11 @@ streamlit run src/streamlit_app.py
         │ │  • Limit: 300 records (free)    │  │
         │ └─────────────────────────────────┘  │
         │ ┌─────────────────────────────────┐  │
-        │ │  Embeddings                     │  │
+        │ │  Embeddings & Storage           │  │
+        │ │  • Document chunks converted to │  │
+        │ │    embeddings for storage       │  │
         │ │  • HuggingFace Transformers     │  │
         │ │  • all-mpnet-base-v2 (default)  │  │
-        │ │  • Device-optimized inference   │  │
         │ └─────────────────────────────────┘  │
         └────────────────────┬─────────────────┘
                              │
@@ -369,6 +359,24 @@ streamlit run src/streamlit_app.py
         │ │  • Conversation history         │  │
         │ └─────────────────────────────────┘  │
         └──────────────────────────────────────┘
+
+**System Architecture Overview:**
+
+The system is organized into 7 interconnected layers that work together to process user queries and generate accurate answers:
+
+1. **User Interface Layer**: Handles interaction through CLI and Streamlit web interface, accepting user queries and displaying responses.
+
+2. **Request Processing Layer**: The Persona Handler detects meta-questions (questions about the system itself) and routes them to README extraction if needed.
+
+3. **RAG Assistant Core**: The main orchestrator that coordinates between search, query processing, and hallucination prevention components.
+
+4. **Core Processing Components**: Search Manager retrieves relevant documents from the vector database, Query Processor augments queries with conversation history, and Hallucination Prevention validates that retrieved documents are relevant using similarity thresholds.
+
+5. **Language & Reasoning Layer**: Combines prompt building with multiple reasoning strategies (Chain-of-Thought, ReAct, Few-Shot, etc.) and integrates with LLM providers (OpenAI, Groq, Google Gemini).
+
+6. **Knowledge Base Layer**: Manages document storage and semantic search through ChromaDB using embeddings for similarity matching.
+
+7. **State Management Layer**: Maintains conversation history using configurable memory strategies (Sliding Window, Buffer, Summarization) to preserve context across interactions.
 
 ┌─────────────────────────────────────────────────────────────────────┐
 │   CROSS-CUTTING CONCERNS & UTILITIES                                │
@@ -412,7 +420,6 @@ streamlit run src/streamlit_app.py
 │  7. Prompt Builder (Create system + user prompt)                     │
 │       ↓                                                              │
 │  8. LLM Provider (Generate response)                                 │
-│       ├─ Device Detection (CUDA/MPS/CPU)                             │
 │       └─ Auto-fallback if provider fails                             │
 │       ↓                                                              │
 │  9. Memory Manager (Store turn in history)                           │
@@ -436,7 +443,6 @@ Meta-Question Detection?
     ▼
 Document Search (VectorDB)
     │
-    ├─► Convert query to embedding
     ├─► Search for similar documents (k results)
     ├─► Return ranked results with distances
     │
@@ -476,6 +482,30 @@ Response to User ✅
     │
     └─► Return context-grounded answer
 ```
+
+**Data Flow Overview:**
+
+The question-to-answer flow follows a 10-step process:
+
+1. **User Query**: The user asks a question through CLI or Streamlit interface.
+
+2. **Meta-Question Detection**: The Persona Handler checks if the question is about the system itself (like "What features do you have?"). If yes, it extracts the answer from the README and returns it immediately.
+
+3. **Query Augmentation**: For regular questions, the Query Processor augments the query with relevant conversation history from the Memory Manager to maintain context for follow-up questions.
+
+4. **Document Search**: The Search Manager converts the query to an embedding and searches the ChromaDB vector database for semantically similar document chunks, returning ranked results.
+
+5. **Similarity Validation**: The Hallucination Prevention module validates that the retrieved documents meet the similarity threshold. Meta-questions allow lower thresholds, but regular questions require high similarity. If no relevant documents are found, the system returns "I'm sorry, that information is not known to me."
+
+6. **Reasoning Strategy Selection**: Based on configuration, a reasoning strategy is selected (Chain-of-Thought, ReAct, Few-Shot Prompting, etc.).
+
+7. **Prompt Construction**: The Prompt Builder combines system prompts, constraints, reasoning instructions, context from documents, and the user question into a complete prompt.
+
+8. **LLM Processing**: The prompt is sent to the selected LLM provider (OpenAI, Groq, or Google Gemini). If the provider fails, the system automatically falls back to the next available provider.
+
+9. **Memory Update**: The question-answer pair is stored in the conversation history using the configured memory strategy (Sliding Window summarization, simple buffer, or running summary).
+
+10. **Response Delivery**: The generated answer is returned to the user, maintaining context for potential follow-up questions.
 
 ---
 
@@ -654,7 +684,7 @@ def build_system_prompts():
 
 ```bash
 # Enable detailed logging
-# In logger.py, set logging level
+# In log_manager.py, set logging level
 logging.basicConfig(level=logging.DEBUG)
 
 # Run with verbose output

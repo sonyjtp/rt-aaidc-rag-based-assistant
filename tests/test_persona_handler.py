@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from error_messages import DEFAULT_NOT_KNOWN_ERROR_MESSAGE
+from error_messages import NO_RESULTS_ERROR_MESSAGE
 from src.persona_handler import MetaPattern, PersonaHandler
 
 
@@ -49,7 +49,7 @@ def handler_mocks(mock_readme_extractor):
 
 
 # pylint: disable=redefined-outer-name
-class TestMetaPattern:
+class TestPersonaHandler:
     """Test the MetaPattern class and PersonaHandler functionality."""
 
     @pytest.mark.parametrize(
@@ -99,7 +99,6 @@ class TestMetaPattern:
         """Test MetaPattern initialization and regex matching behavior."""
         meta_pattern = MetaPattern(pattern, kind, response, response_type)
 
-        assert meta_pattern.pattern == pattern
         assert meta_pattern.kind == kind
         assert meta_pattern.response == response
         assert meta_pattern.response_type == response_type
@@ -111,21 +110,15 @@ class TestMetaPattern:
         else:
             assert match_result is None
 
-    # ========================================================================
-    # PersonaHandler Initialization Tests
-    # ========================================================================
-
     @pytest.mark.parametrize(
-        "readme_extractor_available,config_exists,expected_patterns_count",
+        "config_exists,expected_patterns_count",
         [
             pytest.param(
-                True,
                 True,
                 2,
                 id="successful_init_with_readme",
             ),
             pytest.param(
-                True,
                 False,
                 0,
                 id="init_without_config_file",
@@ -135,7 +128,6 @@ class TestMetaPattern:
     def test_persona_handler_initialization_positive_scenarios(
         self,
         handler_mocks,
-        readme_extractor_available,
         config_exists,
         expected_patterns_count,
     ):
@@ -161,13 +153,10 @@ class TestMetaPattern:
                 "allow_self_description": True,
             }
 
-        if not readme_extractor_available:
-            handler_mocks["readme_class"].side_effect = Exception("Extractor init failed")
-
         handler = PersonaHandler()
 
         assert handler.allow_self_description is True
-        assert handler.default_meta_refusal == DEFAULT_NOT_KNOWN_ERROR_MESSAGE
+        assert handler.default_meta_refusal == NO_RESULTS_ERROR_MESSAGE
         if config_exists:
             assert len(handler.patterns) == expected_patterns_count
 
@@ -220,12 +209,8 @@ class TestMetaPattern:
             assert handler.readme_extractor is None
         assert handler.allow_self_description is True
 
-    # ========================================================================
-    # is_meta_question Tests
-    # ========================================================================
-
     @pytest.mark.parametrize(
-        "config_data,query,expected_kind,expected_response_type",
+        "config_data,query,expected",
         [
             pytest.param(
                 {
@@ -240,8 +225,7 @@ class TestMetaPattern:
                     "allow_self_description": True,
                 },
                 "Who are you?",
-                "describe",
-                "",
+                ("describe", "I am a helpful assistant", ""),
                 id="describe_meta_question_match",
             ),
             pytest.param(
@@ -257,8 +241,7 @@ class TestMetaPattern:
                     "allow_self_description": True,
                 },
                 "What tools and models do you use?",
-                "readme_extract",
-                "tools_and_models",
+                ("readme_extract", NO_RESULTS_ERROR_MESSAGE, "tools_and_models"),
                 id="readme_extract_meta_question_match",
             ),
             pytest.param(
@@ -274,245 +257,147 @@ class TestMetaPattern:
                     "allow_self_description": True,
                 },
                 "What are your capabilities?",
-                "sensitive",
-                "",
+                ("sensitive", NO_RESULTS_ERROR_MESSAGE, ""),
                 id="sensitive_meta_question_match",
             ),
             pytest.param(
-                {
-                    "meta_questions": [],
-                    "allow_self_description": True,
-                },
-                "What do you know about machine learning?",
-                None,
-                None,
-                id="domain_query_not_meta_question",
-            ),
-            pytest.param(
-                {
-                    "meta_questions": [],
-                    "allow_self_description": True,
-                },
+                {"meta_questions": [], "allow_self_description": True},
                 "Tell me about the history of AI",
                 None,
-                None,
-                id="non_meta_question",
+                id="domain_non_meta",
             ),
             pytest.param(
-                {
-                    "meta_questions": [],
-                    "allow_self_description": True,
-                },
-                "What do you know about india's history?",
-                None,
-                None,
-                id="india_history_domain_query_not_meta",
-            ),
-            pytest.param(
-                {
-                    "meta_questions": [],
-                    "allow_self_description": True,
-                },
+                {"meta_questions": [], "allow_self_description": True},
                 "",
-                None,
                 None,
                 id="empty_query",
             ),
         ],
     )
-    def test_is_meta_question_positive_scenarios(
-        self,
-        handler_mocks,
-        config_data,
-        query,
-        expected_kind,
-        expected_response_type,
-    ):
-        """Test is_meta_question() with valid meta questions and patterns."""
+    def test_is_meta_question_consolidated(self, handler_mocks, config_data, query, expected):
+        """Consolidated test for meta-question detection (is_meta_question).
+
+        This replaces several earlier positive/negative tests: focuses on
+        whether the handler recognizes meta-questions and returns the expected
+        (kind, response, response_type) tuple or None for non-meta queries.
+        """
         handler_mocks["load_yaml"].return_value = config_data
         handler_mocks["path_instance"].exists.return_value = True
 
         handler = PersonaHandler()
         result = handler.is_meta_question(query)
 
-        if expected_kind is None:
+        if expected is None:
             assert result is None
         else:
             assert result is not None
             kind, response, response_type = result
-            assert kind == expected_kind
-            assert response_type == expected_response_type
+            assert kind == expected[0]
+            assert response == expected[1]
+            assert response_type == expected[2]
 
     @pytest.mark.parametrize(
-        "query,config_exists",
+        "config_data,query,expected_contains",
         [
             pytest.param(
-                "Who are you?",
-                False,
-                id="no_config_file",
-            ),
-            pytest.param(
-                "What can you do?",
-                True,
-                id="invalid_yaml_format",
-            ),
-        ],
-    )
-    def test_is_meta_question_negative_scenarios(
-        self,
-        handler_mocks,
-        query,
-        config_exists,
-    ):
-        """Test is_meta_question() with invalid configs and edge cases."""
-        handler_mocks["path_instance"].exists.return_value = config_exists
-
-        if not config_exists:
-            handler_mocks["load_yaml"].return_value = None
-        else:
-            handler_mocks["load_yaml"].side_effect = Exception("Invalid YAML")
-
-        handler = PersonaHandler()
-        result = handler.is_meta_question(query)
-
-        # Should handle gracefully - result can be None or a tuple
-        assert result is None or isinstance(result, tuple)
-
-    # ========================================================================
-    # handle_meta_question Tests
-    # ========================================================================
-
-    @pytest.mark.parametrize(
-        "kind,allow_self_description,expected_response_contains",
-        [
-            pytest.param(
-                "describe",
-                True,
-                "I am a helpful",
-                id="describe_kind_allowed",
-            ),
-            pytest.param(
-                "readme_extract",
-                True,
-                "Tools and Models",
-                id="readme_extract_kind",
-            ),
-        ],
-    )
-    def test_handle_meta_question_positive_scenarios(
-        self,
-        handler_mocks,
-        kind,
-        allow_self_description,
-        expected_response_contains,
-    ):
-        """Test handle_meta_question() with valid meta question kinds."""
-        response_type = "tools_and_models" if kind == "readme_extract" else ""
-
-        config_data = {
-            "meta_questions": [
                 {
-                    "pattern": "test",
-                    "kind": kind,
-                    "response": "I am a helpful assistant",
-                    "response_type": response_type,
-                }
-            ],
-            "allow_self_description": allow_self_description,
-        }
-        handler_mocks["load_yaml"].return_value = config_data
-        handler_mocks["path_instance"].exists.return_value = True
-
-        handler = PersonaHandler()
-        result = handler.handle_meta_question("test query")
-
-        assert result is not None
-        assert expected_response_contains in result
-
-    @pytest.mark.parametrize(
-        "kind,allow_self_description,expected_response",
-        [
-            pytest.param(
-                "describe",
-                False,
-                DEFAULT_NOT_KNOWN_ERROR_MESSAGE,
-                id="describe_kind_disallowed",
+                    "meta_questions": [
+                        {
+                            "pattern": "test",
+                            "kind": "describe",
+                            "response": "I am a helpful assistant",
+                            "response_type": "",
+                        }
+                    ],
+                    "allow_self_description": True,
+                },
+                "test query",
+                "I am a helpful",
+                id="describe_allowed_returns_description",
             ),
             pytest.param(
-                "sensitive",
-                True,
-                DEFAULT_NOT_KNOWN_ERROR_MESSAGE,
-                id="sensitive_kind_always_refused",
+                {
+                    "meta_questions": [
+                        {
+                            "pattern": "test",
+                            "kind": "describe",
+                            "response": "I am a helpful assistant",
+                            "response_type": "",
+                        }
+                    ],
+                    "allow_self_description": False,
+                },
+                "test query",
+                NO_RESULTS_ERROR_MESSAGE,
+                id="describe_disallowed_returns_refusal",
             ),
             pytest.param(
-                "unknown_kind",
-                True,
-                DEFAULT_NOT_KNOWN_ERROR_MESSAGE,
+                {
+                    "meta_questions": [
+                        {"pattern": "test", "kind": "sensitive", "response": "secret", "response_type": ""}
+                    ],
+                    "allow_self_description": True,
+                },
+                "test query",
+                NO_RESULTS_ERROR_MESSAGE,
+                id="sensitive_always_refused",
+            ),
+            pytest.param(
+                {
+                    "meta_questions": [
+                        {
+                            "pattern": "test",
+                            "kind": "readme_extract",
+                            "response": "",
+                            "response_type": "tools_and_models",
+                        }
+                    ],
+                    "allow_self_description": True,
+                },
+                "test query",
+                "Tools and Models",
+                id="readme_extract_returns_readme_content",
+            ),
+            pytest.param(
+                {"meta_questions": [], "allow_self_description": True},
+                "not a meta query",
+                None,
+                id="non_meta_returns_none",
+            ),
+            pytest.param(
+                {
+                    "meta_questions": [
+                        {
+                            "pattern": "test",
+                            "kind": "unknown_kind",
+                            "response": "I am a helpful assistant",
+                            "response_type": "",
+                        }
+                    ],
+                    "allow_self_description": True,
+                },
+                "test query",
+                NO_RESULTS_ERROR_MESSAGE,
                 id="unknown_kind_refused",
             ),
         ],
     )
-    def test_handle_meta_question_negative_scenarios(
-        self,
-        handler_mocks,
-        kind,
-        allow_self_description,
-        expected_response,
-    ):
-        """Test handle_meta_question() refusing sensitive and disallowed questions."""
-        config_data = {
-            "meta_questions": [
-                {
-                    "pattern": "test",
-                    "kind": kind,
-                    "response": "I am a helpful assistant",
-                    "response_type": "",
-                }
-            ],
-            "allow_self_description": allow_self_description,
-        }
-        handler_mocks["load_yaml"].return_value = config_data
-        handler_mocks["path_instance"].exists.return_value = True
+    def test_handle_meta_question_consolidated(self, handler_mocks, config_data, query, expected_contains):
+        """Consolidated test for handling meta-questions (handle_meta_question).
 
-        handler = PersonaHandler()
-        result = handler.handle_meta_question("test query")
-
-        assert result == expected_response
-
-    @pytest.mark.parametrize(
-        "query",
-        [
-            pytest.param(
-                "Tell me about machine learning",
-                id="non_meta_question_returns_none",
-            ),
-            pytest.param(
-                "",
-                id="empty_query_returns_none",
-            ),
-        ],
-    )
-    def test_handle_meta_question_non_meta_queries(
-        self,
-        handler_mocks,
-        query,
-    ):
-        """Test handle_meta_question() returns None for non-meta queries."""
-        config_data = {
-            "meta_questions": [],
-            "allow_self_description": True,
-        }
+        Replaces multiple positive/negative/non-meta tests with a single
+        parametrized matrix describing expected behavior for different kinds.
+        """
         handler_mocks["load_yaml"].return_value = config_data
         handler_mocks["path_instance"].exists.return_value = True
 
         handler = PersonaHandler()
         result = handler.handle_meta_question(query)
 
-        assert result is None
-
-    # ========================================================================
-    # _get_readme_content Tests
-    # ========================================================================
+        if expected_contains is None:
+            assert result is None
+        else:
+            assert expected_contains in result
 
     @pytest.mark.parametrize(
         "response_type,extractor_method,expected_content_partial",
@@ -621,4 +506,5 @@ class TestMetaPattern:
         elif extraction_fails:
             assert "error" in result.lower() or "encountered" in result.lower()
         elif response_type == "unknown_type":
-            assert "couldn't find" in result.lower()
+            # Unknown response_type returns the default refusal message
+            assert NO_RESULTS_ERROR_MESSAGE.lower() in result.lower()

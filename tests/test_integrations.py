@@ -8,9 +8,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from app_constants import COLLECTION_NAME_DEFAULT
 from config import (
     CHROMA_COLLECTION_METADATA,
-    COLLECTION_NAME_DEFAULT,
     DISTANCE_THRESHOLD,
     RETRIEVAL_K,
     VECTOR_DB_EMBEDDING_MODEL,

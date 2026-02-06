@@ -10,15 +10,6 @@ from langchain_groq import ChatGroq
 from langchain_openai import ChatOpenAI
 
 # ============================================================================
-# FILENAMES, PATHS & DIRECTORIES
-# ============================================================================
-
-ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DATA_DIR = os.path.join(ROOT_DIR, os.getenv("DATA_DIR", "data"))
-README = "README.md"
-
-
-# ============================================================================
 # LLM & MODEL CONFIGURATION
 # ============================================================================
 
@@ -63,7 +54,7 @@ LLM_PROVIDERS = [
 # ============================================================================
 # DOCUMENT TYPES
 # ============================================================================
-# Could use any, a few, or all of : (".pdf", ".docx", ".txt", ".md")
+# Could use any, a few, or all of : (".txt", ".md")
 DOCUMENT_TYPES = ".txt"
 
 # ============================================================================
@@ -71,23 +62,16 @@ DOCUMENT_TYPES = ".txt"
 # ============================================================================
 
 # ChromaDB Configuration
-CHROMA_API_KEY_ENV = "CHROMA_API_KEY"
-CHROMA_DATABASE_ENV = "CHROMA_DATABASE"
-CHROMA_TENANT_ENV = "CHROMA_TENANT"
 CHROMA_COLLECTION_METADATA = {
     "hnsw:space": "cosine",
     "description": "RAG document collection",
 }
 
 # Vector Database Collections
-VECTOR_DB_COLLECTION_NAME = "documents"
-COLLECTION_NAME_DEFAULT = "rag_documents"
 VECTOR_DB_BATCH_SIZE_LIMIT = 300
 
 # Embedding Model
 VECTOR_DB_EMBEDDING_MODEL = "sentence-transformers/all-mpnet-base-v2"
-
-PUNCTUATION_CHARS = ".,;:!? "
 
 
 # ============================================================================
@@ -101,7 +85,7 @@ TEXT_SPLITTER_SEPARATORS = ["\n\n", "\n", ". ", " ", ""]
 
 # Retrieval Configuration
 RETRIEVAL_K = 5
-DISTANCE_THRESHOLD = 1.0
+DISTANCE_THRESHOLD = 0.5
 
 
 # ============================================================================
@@ -109,29 +93,26 @@ DISTANCE_THRESHOLD = 1.0
 # ============================================================================
 
 # Memory Strategy Configuration
-MEMORY_STRATEGIES_FPATH = os.path.join(ROOT_DIR, "config", "memory_strategies.yaml")
 # Options: summarization_sliding_window, summarization, conversation_buffer_memory, none
 MEMORY_STRATEGY = "summarization_sliding_window"
 
 # Default memory strategy parameters
-DEFAULT_MEMORY_SLIDING_WINDOW_SIZE = 3
-CHAT_HISTORY = "chat_history"
-MEMORY_PARAMETERS_KEY = "parameters"
+DEFAULT_MEMORY_SLIDING_WINDOW_SIZE = 10
 DEFAULT_MAX_MESSAGES = 50
 DEFAULT_SUMMARY_PROMPT = "Summarize the conversation so far in a few sentences."
 DEFAULT_SUMMARY_INTERVAL = 10  # Summarize every 10 messages
 
 # Reasoning Strategy Configuration
-REASONING_STRATEGIES_FPATH = os.path.join(ROOT_DIR, "config", "reasoning_strategies.yaml")
 # Options: rag_enhanced_reasoning, simple_few_shot, none
 REASONING_STRATEGY = "rag_enhanced_reasoning"
 
 # Prompt Configuration
-PROMPT_CONFIG_FPATH = os.path.join(ROOT_DIR, "config", "prompt-config.yaml")
-PROMPT_CONFIG_NAME = "rag-assistant-system-prompt-formal"
+# Options: rag-assistant-system-prompt-formal, rag-assistant-system-prompt-casual
+PROMPT_CONFIG_NAME_DEFAULT = "rag-assistant-system-prompt-formal"
 
-# Metaquestions Configuration
-METAQUESTIONS_FPATH = os.path.join(ROOT_DIR, "config", "meta-questions.yaml")
 
-# Query Augmentation Configuration
-QUERY_AUGMENTATION_PATH = os.path.join(ROOT_DIR, "config", "query-augmentation.yaml")
+# ============================================================================
+# LOGGING & OUTPUT FORMATTING
+# ============================================================================
+
+SEARCH_RESULTS_LOG_LINE_LENGTH = 50

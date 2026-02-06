@@ -8,64 +8,150 @@
 
 meta_questions:
   # ============================================================================
-  # DESCRIBE: Self-description and capability questions (→ README.md)
+  # DESCRIBE: Self-description and capability questions
   # ============================================================================
-  - pattern: "(?i)\\b(who are you|what are you|introduce yourself|tell me about yourself)\\b"
+  - pattern: "(?i)\\b(who are you|what are you|introduce yourself|tell me about yourself|what is your (purpose|goal|objective|mission))\\b"
     kind: "describe"
-    response: "I'm an AI assistant with comprehensive knowledge about India. I can discuss India's rich history, diverse culture, geography, religions, traditions, government, economy, and much more. Whether you're interested in ancient civilizations, contemporary issues, regional variations, or any aspect of Indian civilization, I'm here to help! Feel free to ask me anything about India."
+    response: "I'm an AI assistant specialized in answering questions about India using a curated knowledge base. I can discuss India's history, culture, geography, religions, government, economy, and much more. Ask me anything about India!"
 
   - pattern: "(?i)\\b(what can you do|what are your capabilities|how can you help)\\b"
     kind: "describe"
-    response: "I can help you explore comprehensive information about India! I'm knowledgeable about India's history, culture, geography, religions, arts, sciences, government, economy, tourism, cuisine, sports, literature, and much more. Ask me about anything related to India—from its ancient civilizations to its contemporary developments, and I'll do my best to help!"
+    response: "I can answer comprehensive questions about India—history, culture, geography, religions, arts, sciences, government, economy, tourism, cuisine, sports, and literature. My knowledge comes from a specialized India-focused document collection."
 
-  - pattern: "(?i)\\b(what are your|what are my)\\s+(limitations|limits|restrictions|scope)\\b"
+  - pattern: "(?i)\\b(what else (can you do|can you tell me about yourself)|what else can you (help|assist)|another capability|any other (feature|ability))\\b"
     kind: "describe"
-    response: "I'm specialized in answering questions about India—its history, culture, geography, people, achievements, and contemporary issues. My knowledge is limited to this curated India-focused collection, so I may not have detailed information about other countries or unrelated topics. For questions outside my India expertise, I'll let you know that I don't have that information."
+    response: "I specialize in comprehensive India topics—history, culture, geography, religions, government, economy, arts, sciences, literature, cuisine, sports, and tourism. Feel free to ask about any aspect of India, or ask me to explore a different angle on a topic you're interested in!"
+
+  - pattern: "(?i)\\b(what (do you know|can you tell me) about|what.*expertise|what.*knowledge.*have)\\b"
+    kind: "describe"
+    response: "I specialize in comprehensive India topics—history, culture, geography, religions, government, economy, arts, sciences, literature, cuisine, sports, and tourism. I can answer detailed questions about any of these areas!"
+
+  - pattern: "(?i)\\b(list (all )?topics|what topics|topics (available|covered)|all (subjects|areas)|topic list|topics (you|i can).*(know|find|ask about))\\b"
+    kind: "describe"
+    response: "I cover comprehensive India topics including: history, culture, geography, religions, government, economy, arts, sciences, literature, cuisine, sports, and tourism. Ask me about any of these areas or request more details on specific topics!"
+
+  - pattern: "(?i)\\b(what (are|is) your|what are my)\\s+(limitations|limits|restrictions|scope)\\b"
+    kind: "describe"
+    response: "I'm specialized in India-related topics only. My knowledge is limited to this curated collection, so I may not have detailed information about other countries or unrelated subjects. I'll let you know when information is outside my scope."
+
+  - pattern: "(?i)\\b(what documents (do you have|are you trained on)|what data (do you know|are you aware of))\\b"
+    kind: "describe"
+    response: "I have access to a curated collection of documents about India. I can only answer questions based on these documents—I won't speculate or use general knowledge outside this collection."
+
+  - pattern: "(?i)\\b(can you (help|assist) (me|with)|what can i (ask|inquire).*(you|about))\\b"
+    kind: "describe"
+    response: "I can answer comprehensive questions about India—history, culture, geography, religions, arts, sciences, government, economy, tourism, cuisine, sports, and literature. Feel free to ask anything about India!"
+
+  - pattern: "(?i)\\b(what (are|is) (your|the) (language model|llm|model you use))\\b"
+    kind: "describe"
+    response: "I use multiple language models—OpenAI GPT-4, Groq Llama 3.1, and Google Gemini Pro—with automatic fallback if one provider is unavailable. My knowledge comes exclusively from a curated India-focused document collection."
+
+  - pattern: "(?i)\\b(are you (reliable|accurate|trustworthy)|how (reliable|accurate) are you)\\b"
+    kind: "describe"
+    response: "I aim for accuracy by grounding all answers exclusively in my document collection and using strict hallucination prevention measures. However, my knowledge is limited to the provided documents, so some India-related topics may not be covered."
+
+  - pattern: "(?i)\\b(do you (have|support) (memory|conversation history)|can you (remember|recall))\\b"
+    kind: "describe"
+    response: "Yes, I maintain conversation memory across interactions using a sliding window strategy. I remember recent messages and keep a running summary to maintain context while staying within token limits."
+
+  - pattern: "(?i)\\b(what topics (can you handle|do you support)|what subject (are you|do you handle))\\b"
+    kind: "describe"
+    response: "I specialize exclusively in India-related topics—history, culture, geography, religions, government, economy, arts, sciences, and more."
+
+  - pattern: "(?i)\\b(are you (open source|free|proprietary)|what.*license.*you.*use)\\b"
+    kind: "describe"
+    response: "This project is open source and licensed under CC BY-NC-SA 4.0 (Creative Commons Attribution-NonCommercial-ShareAlike). You can use, modify, and share it under those terms."
+
+  # Capabilities
+  - pattern: "(?i)\\b(what.*capabilities.*have|what.*capabilities|what can you (do|help|assist)|what.*can.*provide)\\b"
+    kind: "describe"
+    response: "I can help you with the following capabilities:\n\n• Document Loading: Load and process text documents from your data directory\n\n• Semantic Search: Find relevant document chunks using embedding-based similarity search\n\n• Question Answering: Provide accurate answers based exclusively on your documents\n\n• Conversation Memory: Maintain context across multiple interactions with configurable memory strategies\n\n• Multi-LLM Support: Work with OpenAI, Groq, or Google Gemini language models\n\n• Hallucination Prevention: Strict constraints ensure I only provide information from your documents\n\n• Reasoning Strategies: Apply different reasoning approaches including RAG-Enhanced, Chain-of-Thought, and more\n\n• Multiple Interfaces: Access me through CLI, Streamlit web interface, or API integration"
+
+  # Reasoning & Processing Strategy
+  - pattern: "(?i)\\b(your reasoning|how do you reason|how.*you.*think|thought process|how.*approach.*question|reasoning.*strategy|decision.*process)\\b"
+    kind: "describe"
+    response: "I use multiple reasoning strategies to provide accurate answers:\n\n• RAG-Enhanced Reasoning (default): I retrieve relevant documents first, then apply reasoning grounded in those documents to ensure accuracy\n\n• Chain-of-Thought: I work through problems step-by-step, showing my internal reasoning process before providing the final answer\n\n• ReAct Strategy: I interleave reasoning and actions dynamically, retrieves documents when needed and refines my understanding\n\n• Few-Shot Prompting: I use examples in my reasoning to guide the format and style of responses\n\n• Metacognitive Prompting: I reflect on my confidence level, acknowledge limitations, and express uncertainty when appropriate\n\nMy core principle is to always ground my reasoning in the documents you provide, never supplementing with external knowledge or speculation."
+
+  # LLM Models & Integration
+  - pattern: "(?i)\\b(what.*(llm|model).*you.*use|what.*(gpt|groq|gemini)|llm.*support|which.*provider|openai|gpt-4|llama)\\b"
+    kind: "describe"
+    response: "I support multiple LLM providers for flexibility:\n\n• OpenAI GPT-4 / GPT-4o-mini: Advanced reasoning and understanding\n\n• Groq Llama 3.1: Fast inference, recommended for quick responses\n\n• Google Gemini Pro: Powerful multimodal capabilities\n\n• Automatic Fallback: If one provider is unavailable, I automatically switch to the next available provider\n\nYou can configure which provider to use by setting the appropriate API key (OPENAI_API_KEY, GROQ_API_KEY, or GOOGLE_API_KEY) in your environment."
+
 
   # ============================================================================
-  # README_EXTRACT: Project/System information (→ README.md)
-  # All patterns require explicit context: "you/your/this/system"
+  # README_EXTRACT: Project/System Information
   # ============================================================================
 
-  # Overview/About
-  - pattern: "(?i)\\b(tell me about (yourself|this|your)|about (this|you)|what.*this.*application|overview)\\b"
+  # Overview & Project Info
+  - pattern: "(?i)\\b(tell me about (yourself|this (application|system|project|assistant))|about (this|you|yourself)|what.*this.*(application|system|tool)|project.*overview|what.*you.*built|how.*you.*created)\\b"
     kind: "readme_extract"
     response_type: "overview"
 
-  # Features/Capabilities of THE SYSTEM (not generic "capabilities")
-  - pattern: "(?i)\\b(your features|what features|feature list|this.*features)\\b"
+  - pattern: "(?i)\\b(license|copyright|cc by-nc-sa|usage rights|commercial|non-commercial|legal)\\b"
+    kind: "readme_extract"
+    response_type: "overview"
+
+  - pattern: "(?i)\\b(your.*(development|status|roadmap|future|version|release|update)|project.*status)\\b"
+    kind: "readme_extract"
+    response_type: "overview"
+
+  # Features & Capabilities (of THE SYSTEM)
+  - pattern: "(?i)\\b(your features|what features.*you.*have|feature list|what.*this.*can do)\\b"
     kind: "readme_extract"
     response_type: "features"
 
-  # Architecture/Design (explicit context required)
-  - pattern: "(?i)\\b(your architecture|this.*architecture|system design|how are you built|how is it designed)\\b"
+  # Safety & Quality Assurance
+  - pattern: "(?i)\\b(your.*test.*coverage|test quality|hallucination.*prevention|content.*validation|safety.*check|how.*ensure.*accurate|how.*prevent.*hallucin)\\b"
+    kind: "readme_extract"
+    response_type: "capabilities"
+
+  # Architecture & Design
+  - pattern: "(?i)\\b(this.*architecture|(your|system).*(design|architecture)|how.*you.*built|how.*designed|how.*work|system.*work)\\b"
     kind: "readme_extract"
     response_type: "architecture"
 
-  # Tools/Models used by THE SYSTEM
-  - pattern: "(?i)\\b(your tools|your models|what tools|what models|what llm|what.*use)\\b"
+  # Knowledge Base & Storage
+  - pattern: "(?i)\\b(your.*knowledge.*base|what documents.*know|what.*you.*trained on|chromadb|vector.*database|document.*storage|what.*data.*store)\\b"
+    kind: "readme_extract"
+    response_type: "architecture"
+
+  # Project Structure & Organization
+  - pattern: "(?i)\\b(project structure|directory structure|folder.*layout|what.*file.*where|project.*organization)\\b"
+    kind: "readme_extract"
+    response_type: "architecture"
+
+  # Tools & Technology (remove language model specifics—those are describe)
+  - pattern: "(?i)\\b(your (tools|technology|stack|framework)|built.*with|technology.*stack|core.*technology|langchain|chromadb|embedding model)\\b"
     kind: "readme_extract"
     response_type: "tools_and_models"
 
-  # Customization
-  - pattern: "(?i)\\b(how to customize|how to configure|customize|configure)\\b"
+  # Customization & Configuration
+  - pattern: "(?i)\\b(how.*(customize|configure|modify|change|adjust)|customize.*this|configure.*this|edit.*prompt|change.*behavior|adjust.*setting)\\b"
     kind: "readme_extract"
     response_type: "customization"
-
-  # Quick start
-  - pattern: "(?i)\\b(quick start|get started|how to start|how to install|how to setup|installation)\\b"
-    kind: "readme_extract"
-    response_type: "quick_start"
 
   # ============================================================================
   # SENSITIVE: Requests that must be refused
   # ============================================================================
-  - pattern: "(?i)\\b(show|reveal|display).*\\b(system prompt|internal prompt|system message)\\b"
+  - pattern: "(?i)\\b(what|show|reveal|display|expose|print)\\s+(system prompt|internal prompt|system message|api key|secret)\\b"
     kind: "sensitive"
-    response: "I'm sorry, I can't disclose internal system details or prompts."
+    response: "I'm sorry, I can't disclose internal system details or credentials."
 
-# ============================================================================
-# Global configuration
-# ============================================================================
+  - pattern: "(?i)\\b(what.*system prompt|what.*internal.*instruction|what.*tell.*yourself|your.*secret.*instruction|how.*you.*really.*think).*\\b"
+    kind: "sensitive"
+    response: "I'm sorry, I can't disclose internal system prompts or instructions."
+
+  - pattern: "(?i)\\b(api key|password|secret|credential|private key|auth.*token|bearer.*token)\\b"
+    kind: "sensitive"
+    response: "I'm sorry, I can't share API keys, passwords, or credentials."
+
+  - pattern: "(?i)\\b(jailbreak\\b|bypass\\s+.*?(safeguards?|constraints?)\\b|ignore\\s+.*?(safeguards?|constraints?)\\b|forget\\s+.*?rules?\\b|disregard\\s+.*?rules?\\b|override\\s+.*?instructions?\\b|escape\\s+.*?sandboxes?\\b)"
+    kind: "sensitive"
+    response: "I'm sorry, I can't bypass my guidelines or ignore safety constraints."
+
+  - pattern: "(?i)\\b(user data|personal.*information|pii|email|phone|address|ssn)\\b"
+    kind: "sensitive"
+    response: "I'm sorry, I can't access or share user data or personal information."
+
 allow_self_description: true
 default_meta_refusal: "I'm sorry, I can't help with that request."

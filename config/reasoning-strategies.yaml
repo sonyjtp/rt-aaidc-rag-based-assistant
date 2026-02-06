@@ -1,5 +1,4 @@
 reasoning_strategies:
-
   chain_of_thought:
     name: "Chain-of-Thought (CoT)"
     description: "Model explains step-by-step reasoning before providing the final answer. Useful for complex problems requiring logical deduction."
@@ -14,7 +13,6 @@ reasoning_strategies:
       - "Complex multi-step questions"
       - "Questions requiring logical deduction"
       - "Mathematical or analytical problems"
-
   react:
     name: "ReAct (Reasoning + Acting)"
     description: "Interleaves reasoning and acting in a cyclical manner. The model reasons about what to do, takes an action (e.g., search, retrieve), observes the result, and repeats. Useful for dynamic problem-solving."
@@ -45,7 +43,6 @@ reasoning_strategies:
       - action: "retrieve_document: quantum cryptography applications"
       - observation: "Document mentions government communications, financial institutions, and quantum internet."
       - conclusion: "Based on my retrieval and analysis, quantum cryptography is... with applications in..."
-
   few_shot_prompting:
     name: "Few-Shot Prompting"
     description: "Provides examples in the prompt to guide the model's response format and reasoning style."
@@ -56,14 +53,12 @@ reasoning_strategies:
     examples:
       - question: "What are the main characteristics of quantum cryptography?"
         answer: "Quantum cryptography uses quantum mechanics principles to secure information. Key characteristics include: (1) Quantum key distribution (QKD) protocols like BB84, (2) Detection of eavesdropping through quantum state disturbance, (3) Provable security based on physics laws rather than computational complexity."
-
       - question: "Tell me more about quantum cryptography applications."
         answer: "Quantum cryptography has several practical applications: (1) Secure government and military communications, (2) Financial institution transactions, (3) Research institution data protection, (4) Emerging quantum internet infrastructure for unhackable networks."
     use_cases:
       - "Establishing consistent output format"
       - "Teaching the model a specific style"
       - "Demonstrating desired level of detail"
-
   metacognitive_prompting:
     name: "Metacognitive Prompting"
     description: "Asks the model to reflect on its confidence, limitations, and uncertainty. Promotes honesty and awareness of boundaries."
@@ -81,7 +76,6 @@ reasoning_strategies:
       - "Building trust with users"
       - "Preventing hallucinations"
       - "Honest capability assessment"
-
   rag_enhanced_reasoning:
     name: "RAG-Enhanced Reasoning"
     description: "Combines your existing RAG approach with reasoning strategies. Retrieve documents first, then apply reasoning."
@@ -104,8 +98,6 @@ reasoning_strategies:
       - "Your current RAG implementation"
       - "Document-based Q&A"
       - "Knowledge-grounded reasoning"
-
-active_strategy: "rag_enhanced_reasoning"
 
 strategy_selection_guide:
   simple_factual_questions: "rag_enhanced_reasoning"

@@ -3,10 +3,10 @@ import re
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-from config import METAQUESTIONS_FPATH, PROMPT_CONFIG_FPATH
-from error_messages import DEFAULT_NOT_KNOWN_ERROR_MESSAGE
+from app_constants import METAQUESTIONS_FPATH
+from error_messages import META_QUESTION_CONFIG_ERROR, NO_RESULTS_ERROR_MESSAGE
 from file_utils import load_yaml
-from logger import logger
+from log_manager import logger
 from readme_extractor import ReadmeExtractor
 
 
@@ -15,7 +15,15 @@ class MetaPattern:
     """Represents a meta question pattern."""
 
     def __init__(self, pattern: str, kind: str, response: str = "", response_type: str = ""):
-        self.pattern = pattern
+        """Initialize the meta pattern.
+
+        Args:
+            pattern: Regex pattern to match meta questions
+            kind: Type of meta question (refuse, describe, sensitive, readme_extract)
+            response: Predefined response for the meta question
+            response_type: Type of response for readme_extract patterns
+        """
+
         try:
             self.rx = re.compile(pattern, re.IGNORECASE)
         except re.error:
@@ -27,49 +35,58 @@ class MetaPattern:
 
 
 class PersonaHandler:
-    """Handles meta questions about the assistant itself."""
+    """Handles meta questions about the assistant itself.
 
-    def __init__(self, config_path: Optional[str] = None):
-        cfg_path = Path(config_path) if config_path else None
-        meta_cfg_primary = Path(METAQUESTIONS_FPATH)
-        prompt_cfg = Path(PROMPT_CONFIG_FPATH)
-        if cfg_path and cfg_path.exists():
-            self.cfg_path = cfg_path
-        elif meta_cfg_primary.exists():
-            self.cfg_path = meta_cfg_primary
-        else:
-            self.cfg_path = prompt_cfg
+    Features:
+    1. Load meta question patterns from a YAML configuration file.
+    2. Detect if a user query matches any meta question patterns.
+    3. Provide appropriate responses based on the type of meta question:
+       - Refusal for sensitive questions.
+       - Self-description if allowed.
+       - Dynamic README content extraction for documentation-related questions.
+    """
 
+    def __init__(self):
+        self.meta_question_config_path = Path(METAQUESTIONS_FPATH)
         self.patterns: List[MetaPattern] = []
         self.allow_self_description = True
-        self.default_meta_refusal = DEFAULT_NOT_KNOWN_ERROR_MESSAGE
+        self.default_meta_refusal = NO_RESULTS_ERROR_MESSAGE
 
         # Initialize README extractor for dynamic content
         try:
             self.readme_extractor = ReadmeExtractor()
+            logger.debug("README extractor initialized.")
         except Exception as e:  # pylint: disable=broad-exception-caught
             logger.warning(f"Could not initialize README extractor: {e}")
             self.readme_extractor = None
 
+        # Load meta question patterns from config
         self._load()
+        logger.debug("Meta question config loaded.")
 
     def _load(self):
-        if not self.cfg_path.exists():
+        if not self.meta_question_config_path.exists():
+            logger.error(
+                f"""Meta question config  {self.meta_question_config_path} does not exist.
+                    {META_QUESTION_CONFIG_ERROR}
+                """
+            )
             return
         try:
-            data = load_yaml(self.cfg_path) or {}
+            meta_question_config = load_yaml(self.meta_question_config_path) or {}
+            meta_questions = meta_question_config.get("meta_questions", [])
+            for item in meta_questions:
+                pattern = item.get("pattern", "")
+                kind = item.get("kind", "refuse")
+                response = item.get("response", "")
+                response_type = item.get("response_type", "")
+                self.patterns.append(MetaPattern(pattern, kind, response, response_type))
+            self.allow_self_description = bool(meta_question_config.get("allow_self_description", True))
+            self.default_meta_refusal = meta_question_config.get("default_meta_refusal", self.default_meta_refusal)
         except Exception as e:  # pylint: disable=broad-exception-caught
-            logger.warning(f"Failed to load config from {self.cfg_path}: {e}")
+            logger.error(f"Failed to load config from {self.meta_question_config_path}: {e}")
+            logger.error(META_QUESTION_CONFIG_ERROR)
             return
-        meta_questions = data.get("meta_questions", [])
-        for item in meta_questions:
-            pattern = item.get("pattern", "")
-            kind = item.get("kind", "refuse")
-            response = item.get("response", "")
-            response_type = item.get("response_type", "")
-            self.patterns.append(MetaPattern(pattern, kind, response, response_type))
-        self.allow_self_description = bool(data.get("allow_self_description", True))
-        self.default_meta_refusal = data.get("default_meta_refusal", self.default_meta_refusal)
 
     def is_meta_question(self, query: str) -> Optional[Tuple[str, str, str]]:
         """Return (kind, response, response_type) if query matches a meta pattern, else None."""
@@ -82,7 +99,22 @@ class PersonaHandler:
         return None
 
     def handle_meta_question(self, query: str) -> Optional[str]:
-        """Handle meta question if detected."""
+        """Handle meta question if detected.
+
+        Steps:
+        1. Check if the query matches any meta question patterns.
+        2. Based on the type of meta question:
+           - For "sensitive" questions, return a refusal response.
+           - For "describe" questions, return self-description if allowed; otherwise, refusal.
+           - For "readme_extract" questions, extract and return relevant README content.
+        3. If no patterns match, return None.
+
+        Args:
+            query: User's input query string
+
+        Returns:
+            Appropriate response string if meta question detected, else None
+        """
 
         m = self.is_meta_question(query)
         if not m:
@@ -117,22 +149,23 @@ class PersonaHandler:
             return "I couldn't access the documentation. Please try a different question."
 
         try:
-            match response_type:
-                case "tools_and_models":
-                    return self.readme_extractor.get_tools_and_models()
-                case "overview":
-                    return self.readme_extractor.get_overview()
-                case "architecture":
-                    return self.readme_extractor.get_architecture()
-                case "customization":
-                    return self.readme_extractor.get_customization()
-                case "quick_start":
-                    return self.readme_extractor.get_quick_start()
-                case "features":
-                    return self.readme_extractor.get_features()
-                case _:
-                    logger.warning(f"Unknown response_type: {response_type}")
-                    return "I couldn't find that information in the documentation."
+            handlers = {
+                "tools_and_models": self.readme_extractor.get_tools_and_models,
+                "tools": self.readme_extractor.get_tools_and_models,
+                "overview": self.readme_extractor.get_overview,
+                "architecture": self.readme_extractor.get_architecture,
+                "customization": self.readme_extractor.get_customization,
+                "quick_start": self.readme_extractor.get_quick_start,
+                "features": self.readme_extractor.get_features,
+                "capabilities": self.readme_extractor.get_capabilities,
+            }
+
+            handler = handlers.get(response_type)
+            if not handler:
+                logger.warning(f"Unknown response_type: {response_type}")
+                return NO_RESULTS_ERROR_MESSAGE
+
+            return handler()
         except Exception as e:  # pylint: disable=broad-exception-caught
             logger.error(f"Error extracting README content: {e}")
             return "I encountered an error while accessing the documentation. Please try again."

@@ -33,7 +33,7 @@ def mock_llm():
 def processor_mocks(mock_memory_manager, mock_llm):
     """Fixture providing mocked QueryProcessor dependencies."""
     with (
-        patch("src.query_processor.file_utils_mod.load_yaml") as mock_load_yaml,
+        patch("src.query_processor.file_utils.load_yaml") as mock_load_yaml,
         patch("src.query_processor.logger") as mock_logger,
     ):
         mock_load_yaml.return_value = {

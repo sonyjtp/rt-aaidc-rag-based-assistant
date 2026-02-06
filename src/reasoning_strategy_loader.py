@@ -1,44 +1,59 @@
 """
 Reasoning strategy loader and builder.
-Loads reasoning strategy configurations and provides methods to apply them.
 """
 
 import config
+from app_constants import REASONING_STRATEGIES_FPATH
 from file_utils import load_yaml
+from log_manager import logger
 
 
 class ReasoningStrategyLoader:
-    """Loads and manages reasoning strategies from YAML configuration."""
+    """Loads and manages reasoning strategies from YAML configuration.
+    Provides methods to retrieve and build prompts based on the active strategy.
+    """
 
-    def __init__(self, config_path: str = None):
+    def __init__(self):
         """
-        Initialize the reasoning strategy loader.
+        Initialize the reasoning strategy loader. Sets the active strategy
+        based on the configuration.
 
-        Args:
-            config_path: Path to reasoning_strategies.yaml configuration file
+
         """
-        if config_path is None:
-            config_path = config.REASONING_STRATEGIES_FPATH
-        self.config_path = config_path
-        self.strategies = load_yaml(config_path).get("reasoning_strategies", {})
-        self.active_strategy = config.REASONING_STRATEGY
+        # store the requested strategy key so we can fall back to it when name is missing
+        self.strategy_key = getattr(config, "REASONING_STRATEGY", None)
+        # Allow exceptions from load_yaml to propagate (tests expect this behavior)
+        strategy = self._get_active_strategy(self.strategy_key)
+        if not strategy:
+            logger.warning(f"Reasoning strategy '{self.strategy_key}' not found.")
+            self.active_strategy = None
+        else:
+            self.active_strategy = strategy
 
-    def get_active_strategy(self) -> dict:
+    @staticmethod
+    def _get_active_strategy(strategy_key: str) -> dict:
         """
         Get the currently active reasoning strategy configuration.
 
         Returns:
             Dictionary containing the active strategy configuration
+        """
+        strategies = load_yaml(REASONING_STRATEGIES_FPATH).get("reasoning_strategies", {})
+        # Return None if not found (caller will handle warnings/errors)
+        return strategies.get(strategy_key)
+
+    def get_active_strategy(self) -> dict:
+        """Public accessor for the active strategy configuration.
 
         Raises:
-            ValueError: If active strategy not found in configuration
+            ValueError: If no active strategy is loaded or configured.
+
+        Returns:
+            dict: active strategy configuration
         """
-        if self.active_strategy not in self.strategies:
-            raise ValueError(
-                f"Reasoning strategy '{self.active_strategy}' not found in configuration. "
-                f"Available strategies: {list(self.strategies.keys())}"
-            )
-        return self.strategies[self.active_strategy]
+        if not self.active_strategy:
+            raise ValueError(f"Reasoning strategy '{self.strategy_key}' not available")
+        return self.active_strategy
 
     def get_strategy_instructions(self) -> list[str]:
         """
@@ -47,23 +62,28 @@ class ReasoningStrategyLoader:
         Returns:
             List of instruction strings for the strategy
         """
-        strategy = self.get_active_strategy()
-        return strategy.get("prompt_instructions", [])
+        if not self.active_strategy:
+            return []
+        return self.active_strategy.get("prompt_instructions", [])
 
     def get_strategy_name(self) -> str:
         """Get the name of the active reasoning strategy."""
-        strategy = self.get_active_strategy()
-        return strategy.get("name", self.active_strategy)
+        if not self.active_strategy:
+            # fallback to strategy key when no active strategy
+            return self.strategy_key
+        return self.active_strategy.get("name") or self.strategy_key
 
     def get_strategy_description(self) -> str:
         """Get the description of the active reasoning strategy."""
-        strategy = self.get_active_strategy()
-        return strategy.get("description", "")
+        if not self.active_strategy:
+            return ""
+        return self.active_strategy.get("description", "")
 
     def is_strategy_enabled(self) -> bool:
         """Check if the active strategy is enabled."""
-        strategy = self.get_active_strategy()
-        return strategy.get("enabled", False)
+        if not self.active_strategy:
+            return False
+        return self.active_strategy.get("enabled", False)
 
     def get_few_shot_examples(self) -> list[dict]:
         """
@@ -72,21 +92,9 @@ class ReasoningStrategyLoader:
         Returns:
             List of example dictionaries with 'question' and 'answer' keys
         """
-        strategy = self.get_active_strategy()
-        return strategy.get("examples", [])
-
-    def get_all_enabled_strategies(self) -> list[str]:
-        """
-        Get all enabled strategies.
-
-        Returns:
-            List of enabled strategy names
-        """
-        enabled = []
-        for name, strategy_config in self.strategies.items():
-            if strategy_config.get("enabled", False):
-                enabled.append(name)
-        return enabled
+        if not self.active_strategy:
+            return []
+        return self.active_strategy.get("examples", [])
 
     def build_strategy_prompt(self) -> str:
         """
@@ -95,10 +103,13 @@ class ReasoningStrategyLoader:
         Returns:
             Formatted string with strategy name, description, and instructions
         """
-        strategy = self.get_active_strategy()
-        name = strategy.get("name", self.active_strategy)
-        description = strategy.get("description", "")
-        instructions = strategy.get("prompt_instructions", [])
+        name = (
+            (self.active_strategy.get("name") if self.active_strategy else None)
+            or self.strategy_key
+            or "Unnamed Strategy"
+        )
+        description = self.active_strategy.get("description", "") if self.active_strategy else ""
+        instructions = self.active_strategy.get("prompt_instructions", []) if self.active_strategy else []
 
         prompt_parts = [
             f"Reasoning Strategy: {name}",

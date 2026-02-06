@@ -2,18 +2,19 @@
 
 from typing import Dict, List, Tuple
 
+from config import SEARCH_RESULTS_LOG_LINE_LENGTH
 from error_messages import (
-    SEARCH_MANAGER_INITIALIZATION_FAILED,
+    APPLICATION_INITIALIZATION_FAILED,
     VECTOR_DB_INITIALIZATION_FAILED,
 )
-from logger import logger
+from log_manager import logger
 from vectordb import VectorDB
 
 
 class SearchManager:
     """Encapsulate vector search operations and context validation.
 
-    Features:
+    Functions:
     1. Add documents to VectorDB
     2. Search for relevant documents
     3. Flatten and log search results
@@ -27,7 +28,7 @@ class SearchManager:
 
         # Fail fast if required components are not available
         if self.llm is None or self.vector_db is None:
-            raise RuntimeError(SEARCH_MANAGER_INITIALIZATION_FAILED)
+            raise RuntimeError(APPLICATION_INITIALIZATION_FAILED)
 
     def _initialize_vector_db(self) -> None:
         """Initialize the vector database with error handling."""
@@ -35,7 +36,7 @@ class SearchManager:
             self.vector_db = VectorDB()
             logger.info("Vector database initialized.")
         except Exception as e:  # pylint: disable=broad-exception-caught
-            logger.error(f"{VECTOR_DB_INITIALIZATION_FAILED}: {e}")
+            logger.exception(f"{VECTOR_DB_INITIALIZATION_FAILED}: {e}")
             self.vector_db = None
 
     def add_documents(self, documents: list[str] | list[dict[str, str]]) -> None:
@@ -61,32 +62,6 @@ class SearchManager:
         except Exception as e:  # keep behavior similar to original
             logger.error(f"Error during document search: {e}")
             raise
-
-    @staticmethod
-    def flatten_search_results(search_results: Dict) -> Tuple[List[str], List[float]]:
-        """Flatten nested 'documents' and 'distances' lists into simple lists."""
-        documents = search_results.get("documents", [])
-        distances = search_results.get("distances", [])
-
-        if documents and isinstance(documents[0], list):
-            flat_docs = [doc for doc_list in documents for doc in doc_list]
-        else:
-            flat_docs = documents
-
-        if distances and isinstance(distances[0], list):
-            flat_distances = [dist for dist_list in distances for dist in dist_list]
-        else:
-            flat_distances = distances
-
-        return flat_docs, flat_distances
-
-    @staticmethod
-    def log_search_results(flat_docs: List[str], flat_distances: List[float]) -> None:
-        """Log truncated documents and similarity scores for debugging."""
-        truncated_docs = [doc[:50] + "..." if isinstance(doc, str) and len(doc) > 50 else doc for doc in flat_docs]
-        similarity_scores = [1 - dist for dist in flat_distances]
-        for i, (doc, sim_score) in enumerate(zip(truncated_docs, similarity_scores)):
-            logger.debug(f"Retrieved Result {i + 1}: {doc}, similarity_score: {sim_score}")
 
     def is_context_relevant_to_query(self, query: str, context: str) -> bool:
         """
@@ -119,3 +94,61 @@ class SearchManager:
         except Exception as e:  # pylint: disable=broad-exception-caught
             logger.warning(f"Error validating context relevance: {e}")
             return True
+
+    @staticmethod
+    def flatten_search_results(search_results: Dict) -> Tuple[List[str], List[float]]:
+        """Flatten nested 'documents' and 'distances' lists into simple lists.
+
+        Args:
+            search_results: Dictionary with 'documents' and 'distances' keys
+        Returns:
+            Tuple of flattened documents list and distances list
+        """
+        documents = search_results.get("documents", [])
+        distances = search_results.get("distances", [])
+
+        if documents and isinstance(documents[0], list):
+            flat_docs = [doc for doc_list in documents for doc in doc_list]
+        else:
+            flat_docs = documents
+
+        if distances and isinstance(distances[0], list):
+            flat_distances = [dist for dist_list in distances for dist in dist_list]
+        else:
+            flat_distances = distances
+
+        return flat_docs, flat_distances
+
+    @staticmethod
+    def log_search_results(flat_docs: List[str], flat_distances: List[float]) -> None:
+        """Log truncated documents and similarity scores for debugging.
+
+        Steps:
+        1. Truncate documents to first 50 characters for logging.
+        2. Calculate similarity scores as (1 - distance).
+        3. Log each document with its similarity score.
+
+        Args:
+            flat_docs: List of flattened document strings
+            flat_distances: List of flattened distance floats
+
+        """
+        truncated_docs = [SearchManager._truncate_document(doc) for doc in flat_docs]
+        similarity_scores = [1 - dist for dist in flat_distances]
+        for i, (doc, sim_score) in enumerate(zip(truncated_docs, similarity_scores)):
+            logger.debug(f"Retrieved Result {i + 1}: {doc}, similarity_score: {sim_score}")
+
+    @staticmethod
+    def _truncate_document(doc) -> str:
+        """Truncate a document string if it exceeds max_length, appending '...'.
+
+        Args:
+            doc: Document string to potentially truncate
+            max_length: Maximum allowed length
+
+        Returns:
+            Truncated document string if needed
+        """
+        if isinstance(doc, str) and len(doc) > SEARCH_RESULTS_LOG_LINE_LENGTH:
+            return doc[:SEARCH_RESULTS_LOG_LINE_LENGTH] + "..."
+        return doc

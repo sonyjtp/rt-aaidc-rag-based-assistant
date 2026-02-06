@@ -4,11 +4,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from config import DISTANCE_THRESHOLD
 from error_messages import (
-    DEFAULT_NOT_KNOWN_ERROR_MESSAGE,
+    APPLICATION_INITIALIZATION_FAILED,
     LLM_INITIALIZATION_FAILED,
-    REASONING_INITIALIZATION_FAILED,
-    SEARCH_MANAGER_INITIALIZATION_FAILED,
+    NO_RESULTS_ERROR_MESSAGE,
+    REASONING_STRATEGY_MISSING,
+    SEARCH_FAILED_ERROR_MESSAGE,
 )
 from src.rag_assistant import RAGAssistant
 
@@ -21,13 +23,24 @@ def mock_components():
         patch("src.rag_assistant.MemoryManager") as mock_memory_cls,
         patch("src.rag_assistant.ReasoningStrategyLoader") as mock_reasoning_cls,
         patch("src.rag_assistant.initialize_llm") as mock_init_llm,
-        patch("src.rag_assistant.build_system_prompts") as mock_build_prompts,
-        patch("src.rag_assistant.create_prompt_template") as mock_create_prompt,
+        patch("src.rag_assistant.PromptBuilder") as mock_prompt_builder_cls,
+        patch("src.rag_assistant.get_default_system_prompts") as mock_get_default_prompts,
         patch("src.rag_assistant.logger") as mock_logger,
     ):
         # make initialize_llm return a mock LLM by default
         mock_llm = MagicMock(name="LLMDefault")
         mock_init_llm.return_value = mock_llm
+
+        # PromptBuilder mock
+        mock_prompt_builder_instance = MagicMock(name="PromptBuilderInstance")
+        mock_prompt_builder_instance.build_system_prompts.return_value = ["system prompt"]
+        # ensure create_prompt_template returns the shared prompt template mock
+        mock_prompt_builder_instance.create_prompt_template.return_value = mock_prompt_builder_instance
+        mock_prompt_builder_cls.return_value = mock_prompt_builder_instance
+
+        # get_default_system_prompts mock
+        mock_get_default_prompts.return_value = ["default system prompt"]
+
         # SearchManager mock instance
         search_manager_instance = MagicMock(name="SearchManagerInstance")
         default_search = {
@@ -60,13 +73,13 @@ def mock_components():
         reasoning_instance.get_strategy_name.return_value = "RAG-Enhanced Reasoning"
         mock_reasoning_cls.return_value = reasoning_instance
 
-        # default prompt builders
-        mock_build_prompts.return_value = ["system prompt"]
-        prompt_template_mock = MagicMock(name="PromptTemplate")
-        mock_create_prompt.return_value = prompt_template_mock
         # chain operator composition (prompt | llm | parser)
+        prompt_template_mock = MagicMock(name="PromptTemplate")
         prompt_template_mock.__or__.return_value = prompt_template_mock
         prompt_template_mock.__ror__.return_value = prompt_template_mock
+
+        # ensure the PromptBuilder creates the shared prompt template mock
+        mock_prompt_builder_instance.create_prompt_template.return_value = prompt_template_mock
 
         yield {
             "search_manager_cls": mock_search_manager_cls,
@@ -77,8 +90,9 @@ def mock_components():
             "reasoning_instance": reasoning_instance,
             "init_llm_mock": mock_init_llm,
             "mock_llm": mock_llm,
-            "build_prompts_mock": mock_build_prompts,
-            "create_prompt_mock": mock_create_prompt,
+            "prompt_builder_cls": mock_prompt_builder_cls,
+            "prompt_builder_instance": mock_prompt_builder_instance,
+            "get_default_prompts_mock": mock_get_default_prompts,
             "prompt_template_mock": prompt_template_mock,
             "mock_logger": mock_logger,
         }
@@ -122,14 +136,14 @@ class TestRAGAssistant:  # pylint: disable=redefined-outer-name
     def test_search_manager_initialization_failure(self, mock_components):  # pylint: disable=redefined-outer-name
         """If SearchManager constructor raises, RAGAssistant.__init__ should raise RuntimeError."""
         mock_components["init_llm_mock"].return_value = mock_components["mock_llm"]
-        mock_components["search_manager_cls"].side_effect = RuntimeError(SEARCH_MANAGER_INITIALIZATION_FAILED)
+        mock_components["search_manager_cls"].side_effect = RuntimeError(APPLICATION_INITIALIZATION_FAILED)
 
         with pytest.raises(RuntimeError):
             RAGAssistant()
 
         mock_components["mock_logger"].exception.assert_called()
         exception_log_msg = mock_components["mock_logger"].exception.call_args.args[0]
-        assert SEARCH_MANAGER_INITIALIZATION_FAILED in exception_log_msg
+        assert APPLICATION_INITIALIZATION_FAILED in exception_log_msg
 
         mock_components["search_manager_cls"].assert_called_once_with(mock_components["mock_llm"])
 
@@ -165,13 +179,19 @@ class TestRAGAssistant:  # pylint: disable=redefined-outer-name
                 RAGAssistant()
             mock_components["mock_logger"].exception.assert_called()
         else:
-            mock_components["build_prompts_mock"].side_effect = Exception(REASONING_INITIALIZATION_FAILED)
+            # simulate prompt builder failing to build system prompts
+            mock_components["prompt_builder_instance"].build_system_prompts.side_effect = Exception(
+                REASONING_STRATEGY_MISSING
+            )
             with (patch("src.rag_assistant.get_default_system_prompts") as mock_get_default,):
                 mock_get_default.return_value = ["default system prompt"]
                 fallback_prompt_template = MagicMock(name="FallbackPromptTemplate")
                 fallback_prompt_template.__or__.return_value = fallback_prompt_template
                 fallback_prompt_template.__ror__.return_value = fallback_prompt_template
-                mock_components["create_prompt_mock"].return_value = fallback_prompt_template
+                # ensure PromptBuilder.create_prompt_template returns the fallback template
+                mock_components[
+                    "prompt_builder_instance"
+                ].create_prompt_template.return_value = fallback_prompt_template
 
                 assistant = RAGAssistant()
 
@@ -209,7 +229,7 @@ class TestRAGAssistant:  # pylint: disable=redefined-outer-name
         mock_components["search_manager_instance"].flatten_search_results.return_value = (["Doc content"], [0.1])
         mock_components["search_manager_instance"].is_context_relevant_to_query.return_value = True
 
-        resp = assistant.invoke("What is this?", n_results=3)
+        resp = assistant.invoke("What is this?")
 
         # chain invoked and response returned
         assistant.chain.invoke.assert_called_once()
@@ -252,6 +272,9 @@ class TestRAGAssistant:  # pylint: disable=redefined-outer-name
         assistant.chain = MagicMock()
         assistant.memory_manager = None  # common: run in degraded-memory mode for both scenarios
 
+        # Prevent meta-question short-circuit during error simulations
+        assistant.persona_handler = None
+
         if scenario == "config_error":
             # Configuration error raised by search should produce a friendly message and not call the chain
             mock_components["search_manager_instance"].search.side_effect = ValueError(
@@ -259,13 +282,10 @@ class TestRAGAssistant:  # pylint: disable=redefined-outer-name
             )
 
             resp = assistant.invoke("Query causing config error")
-            resp_lower = resp.lower()
-            assert "unable to search" in resp_lower
-            assert "configuration" in resp_lower
-            # ensure internal details aren't leaked
-            assert "768" not in resp_lower
-            assert "384" not in resp_lower
-            # chain should not be invoked
+            # Should return a generic search failure message and not leak internals
+            assert SEARCH_FAILED_ERROR_MESSAGE.lower() in resp.lower()
+            assert "768" not in resp.lower()
+            assert "384" not in resp.lower()
             assistant.chain.invoke.assert_not_called()
             mock_components["search_manager_instance"].search.assert_called_once()
             return  # done for config_error
@@ -287,17 +307,17 @@ class TestRAGAssistant:  # pylint: disable=redefined-outer-name
         """Test that _initialize_search_manager raises when LLM is None (line 77-78)."""
         mock_components["init_llm_mock"].return_value = None
 
-        with pytest.raises(RuntimeError, match=SEARCH_MANAGER_INITIALIZATION_FAILED):
+        with pytest.raises(RuntimeError, match=APPLICATION_INITIALIZATION_FAILED):
             RAGAssistant()
 
-        mock_components["mock_logger"].error.assert_called_with(SEARCH_MANAGER_INITIALIZATION_FAILED)
+        mock_components["mock_logger"].error.assert_called_with(APPLICATION_INITIALIZATION_FAILED)
 
     def test_initialize_search_manager_generic_exception(self, mock_components):
         """Test that generic exceptions in SearchManager init are caught and wrapped (lines 84-86)."""
         generic_error = Exception("Some database connection error")
         mock_components["search_manager_cls"].side_effect = generic_error
 
-        with pytest.raises(RuntimeError, match=SEARCH_MANAGER_INITIALIZATION_FAILED):
+        with pytest.raises(RuntimeError, match=APPLICATION_INITIALIZATION_FAILED):
             RAGAssistant()
 
         # Verify the exception was logged
@@ -375,7 +395,7 @@ class TestRAGAssistant:  # pylint: disable=redefined-outer-name
 
         resp = assistant.invoke("Query with no results")
 
-        assert resp == DEFAULT_NOT_KNOWN_ERROR_MESSAGE
+        assert resp == NO_RESULTS_ERROR_MESSAGE
         assistant.chain.invoke.assert_not_called()
         mock_components["mock_logger"].warning.assert_called_with("No documents found for query: Query with no results")
 
@@ -392,7 +412,7 @@ class TestRAGAssistant:  # pylint: disable=redefined-outer-name
 
         resp = assistant.invoke("Another query")
 
-        assert resp == DEFAULT_NOT_KNOWN_ERROR_MESSAGE
+        assert resp == NO_RESULTS_ERROR_MESSAGE
         assistant.chain.invoke.assert_not_called()
 
     def test_invoke_context_validation_failure(self, mock_components):
@@ -403,9 +423,13 @@ class TestRAGAssistant:  # pylint: disable=redefined-outer-name
 
         mock_components["search_manager_instance"].search.return_value = {
             "documents": [["Irrelevant doc"]],
-            "distances": [[0.1]],
+            # Use a distance higher than typical DISTANCE_THRESHOLD so there is NO strong match
+            "distances": [[DISTANCE_THRESHOLD + 0.1]],
         }
-        mock_components["search_manager_instance"].flatten_search_results.return_value = (["Irrelevant doc"], [0.1])
+        mock_components["search_manager_instance"].flatten_search_results.return_value = (
+            ["Irrelevant doc"],
+            [DISTANCE_THRESHOLD + 0.1],
+        )
 
         # Mock QueryProcessor to fail validation
         with patch("src.rag_assistant.QueryProcessor") as mock_qp_cls:
@@ -413,13 +437,18 @@ class TestRAGAssistant:  # pylint: disable=redefined-outer-name
             mock_qp_instance.validate_context.return_value = False
             mock_qp_cls.return_value = mock_qp_instance
 
-            assistant.invoke("Query with invalid context")
+            # Ensure the assistant uses the mocked QueryProcessor instance
+            assistant.query_processor = mock_qp_instance
 
-            # Context should be empty after failed validation
-            chain_inputs = assistant.chain.invoke.call_args.args[0]
-            assert chain_inputs["context"] == ""
-            mock_components["mock_logger"].warning.assert_called_with(
-                "Context validation failed for query: Query with invalid context"
+            resp = assistant.invoke("Query with invalid context")
+
+            # With validation failure and no strong match, should return default error and not call chain
+            assert resp == NO_RESULTS_ERROR_MESSAGE
+            assistant.chain.invoke.assert_not_called()
+            # Logger should have been warned about context validation failure
+            assert any(
+                "Context validation failed for query" in str(call)
+                for call in mock_components["mock_logger"].warning.call_args_list
             )
 
     def test_invoke_slow_response_logging(self, mock_components):
@@ -461,7 +490,7 @@ class TestRAGAssistant:  # pylint: disable=redefined-outer-name
 
         # Mock time to simulate fast response
         with patch("src.rag_assistant.time.time") as mock_time:
-            mock_time.side_effect = [0.0, 0.5]  # 0.5 second response
+            mock_time.side_effect = [0.0, 0.5]
 
             resp = assistant.invoke("Fast query")
 
@@ -519,8 +548,6 @@ class TestRAGAssistant:  # pylint: disable=redefined-outer-name
         assistant = RAGAssistant()
         assistant.chain = None  # No chain initialized
 
-        resp = assistant.invoke("Any query")
-
-        assert resp == "RAG Assistant is not properly initialized."
-        # Search should not be called
+        with pytest.raises(RuntimeError):
+            assistant.invoke("Any query")
         mock_components["search_manager_instance"].search.assert_not_called()
