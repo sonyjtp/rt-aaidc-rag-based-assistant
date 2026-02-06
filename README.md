@@ -19,6 +19,7 @@
 - [Features](#-features)
 - [Quick Start](#-quick-start)
 - [Installation](#-installation)
+- [Docker Deployment](#-docker-deployment)
 - [Configuration](#-configuration)
 - [Usage](#-usage)
 - [Project Architecture](#-project-architecture)
@@ -182,6 +183,191 @@ pip install -r requirements-dev.txt
 # Set up pre-commit hooks for automatic code formatting
 pre-commit install
 ```
+
+---
+
+## 🐳 Docker Deployment
+
+### Prerequisites
+- Docker 20.10+
+- Docker Compose 1.29+
+- API keys for at least one LLM provider (see [Quick Start](#-quick-start))
+
+### Quick Start with Docker
+
+```bash
+# Build the Docker image
+docker build -t rag-assistant:latest .
+
+# Run the container
+docker run -p 8501:8501 \
+  -e OPENAI_API_KEY=your_key_here \
+  -e GROQ_API_KEY=your_key_here \
+  -e GOOGLE_API_KEY=your_key_here \
+  -v $(pwd)/data:/app/data \
+  rag-assistant:latest
+
+# Access the app at http://localhost:8501
+```
+
+### Using Docker Compose (Recommended)
+
+**1. Create `.env` file with your API keys:**
+
+```bash
+# Copy the example
+cp .env_example .env
+
+# Edit .env with your credentials
+OPENAI_API_KEY=your_openai_key
+GROQ_API_KEY=your_groq_key
+GOOGLE_API_KEY=your_google_key
+```
+
+**2. Start the application:**
+
+```bash
+# Start the service in background
+docker-compose up -d
+
+# View logs
+docker-compose logs -f rag-assistant
+
+# Stop the service
+docker-compose down
+```
+
+**3. Access the application:**
+
+Open your browser and navigate to: `http://localhost:8501`
+
+### Docker Compose Configuration
+
+The `docker-compose.yml` file includes:
+
+```yaml
+services:
+  rag-assistant:
+    build: .                              # Build from Dockerfile
+    container_name: rag-assistant-ui      # Container name
+    ports:
+      - "8501:8501"                       # Streamlit port
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+    volumes:
+      - ./data:/app/data                  # Mount documents
+      - ./config:/app/config              # Mount config files
+    env_file:
+      - .env                              # Load from .env file
+```
+
+### Dockerfile Details
+
+The `Dockerfile` includes:
+
+- **Base Image**: `python:3.11-slim` (lightweight)
+- **Dependencies**: Installed from `requirements.txt`
+- **Code**: Copies `src/`, `config/`, `static/`, and `data/` directories
+- **Port**: Exposes port 8501 for Streamlit
+- **Styling**: Includes custom CSS from `static/css/styles.css`
+
+### Environment Variables for Docker
+
+When running in Docker, set these environment variables via `.env` or `-e` flag:
+
+```bash
+# LLM Provider Keys (choose at least one)
+OPENAI_API_KEY=your_openai_key
+GROQ_API_KEY=your_groq_key
+GOOGLE_API_KEY=your_google_key
+
+# Optional: Streamlit configuration
+STREAMLIT_LOGGER_LEVEL=info
+```
+
+### Useful Docker Commands
+
+```bash
+# Build image with custom tag
+docker build -t rag-assistant:v1.0 .
+
+# List running containers
+docker ps
+
+# View container logs
+docker logs rag-assistant-ui
+
+# Access container shell
+docker exec -it rag-assistant-ui bash
+
+# Push to Docker Hub
+docker tag rag-assistant:latest username/rag-assistant:latest
+docker push username/rag-assistant:latest
+
+# Clean up (remove containers, images)
+docker-compose down
+docker system prune -a
+```
+
+### Volumes & Data Persistence
+
+- **`./data:/app/data`** — Mount your document directory
+  - Add `.txt` files to `data/` on your host machine
+  - Accessible inside container at `/app/data`
+
+- **`./config:/app/config`** — Mount configuration files
+  - Modify YAML configs on your host
+  - Changes reflected immediately (no rebuild needed)
+
+### Performance Tips
+
+1. **GPU Support** (Optional)
+   ```bash
+   # If you have NVIDIA GPU, add to docker-compose.yml:
+   deploy:
+     resources:
+       reservations:
+         devices:
+           - driver: nvidia
+             count: 1
+             capabilities: [gpu]
+   ```
+
+2. **Memory Management**
+   ```bash
+   # Limit memory usage
+   docker run -m 2g rag-assistant:latest
+   ```
+
+3. **Custom Port**
+   ```bash
+   # Run on different port
+   docker run -p 9000:8501 rag-assistant:latest
+   # Access at http://localhost:9000
+   ```
+
+### Troubleshooting Docker
+
+| Issue | Solution |
+|-------|----------|
+| Port 8501 already in use | Change port in docker-compose: `"9000:8501"` |
+| API keys not found | Ensure `.env` file exists and is loaded |
+| Documents not found | Verify `data/` directory is mounted correctly |
+| Styling not applied | Rebuild image: `docker-compose up -d --build` |
+| Container crashes | Check logs: `docker-compose logs rag-assistant` |
+
+### `.dockerignore` File
+
+The project includes a `.dockerignore` file that excludes:
+- Git files (`.git`, `.gitignore`)
+- Cache files (`__pycache__`, `.pytest_cache`)
+- Virtual environments (`venv`, `.venv`)
+- IDE files (`.idea`, `.vscode`)
+- Environment files (`.env.local`)
+
+This keeps Docker images small and fast.
 
 ---
 
