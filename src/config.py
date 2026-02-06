@@ -84,8 +84,8 @@ CHUNK_OVERLAP = 200  # Increased from 100 (20% overlap) for better context
 TEXT_SPLITTER_SEPARATORS = ["\n\n", "\n", ". ", " ", ""]
 
 # Retrieval Configuration
-RETRIEVAL_K = 5
-DISTANCE_THRESHOLD = 0.5
+RETRIEVAL_K = 5  # Number of documents to retrieve for context
+DISTANCE_THRESHOLD = 0.5  # Max distance for relevant documents (0 to 1 for cosine). Higher the distance, less relevant.
 
 
 # ============================================================================

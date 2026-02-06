@@ -22,7 +22,7 @@ meta_questions:
     kind: "describe"
     response: "I specialize in comprehensive India topics—history, culture, geography, religions, government, economy, arts, sciences, literature, cuisine, sports, and tourism. Feel free to ask about any aspect of India, or ask me to explore a different angle on a topic you're interested in!"
 
-  - pattern: "(?i)\\b(what (do you know|can you tell me) about|what.*expertise|what.*knowledge.*have)\\b"
+  - pattern: "(?i)\\b(what (do you know|can you tell me) about (yourself|you|your (expertise|knowledge|capabilities))|what.*your.*expertise|what.*knowledge.*do you.*have|what.*you.*specialize)\\b"
     kind: "describe"
     response: "I specialize in comprehensive India topics—history, culture, geography, religions, government, economy, arts, sciences, literature, cuisine, sports, and tourism. I can answer detailed questions about any of these areas!"
 

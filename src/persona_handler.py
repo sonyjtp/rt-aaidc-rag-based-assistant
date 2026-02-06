@@ -19,7 +19,7 @@ class MetaPattern:
 
         Args:
             pattern: Regex pattern to match meta questions
-            kind: Type of meta question (refuse, describe, sensitive, readme_extract)
+            kind: Type of meta question (sensitive, describe, readme_extract)
             response: Predefined response for the meta question
             response_type: Type of response for readme_extract patterns
         """
@@ -122,14 +122,17 @@ class PersonaHandler:
         kind, response, response_type = m
 
         if kind == "sensitive":
+            logger.warning(f"Refusing to answer sensitive meta question: {query}")
             return self.default_meta_refusal
 
         if kind == "describe":
+            logger.info(f"Handling self-description meta question: {query}")
             if self.allow_self_description:
                 return response
             return self.default_meta_refusal
 
         if kind == "readme_extract":
+            logger.info(f"Handling README extraction meta question: {query}")
             return self._get_readme_content(response_type)
 
         # default: refusal

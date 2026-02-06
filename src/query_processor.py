@@ -80,9 +80,21 @@ class QueryProcessor:
                     # Extract the last user message from chat history
                     lines = chat_history.strip().split("\n")
                     last_user_question = None
+
+                    # Try multiple common formats for user messages
+                    user_prefixes = ["Human: ", "User: ", "Q: ", "Question: ", "USER: ", "HUMAN: "]
+
                     for line in reversed(lines):
-                        if line.startswith("Human: "):
-                            last_user_question = line[7:].strip()  # Remove 'Human: ' prefix
+                        if not line.strip():  # Skip empty lines
+                            continue
+                        for prefix in user_prefixes:
+                            if line.startswith(prefix):
+                                last_user_question = line[len(prefix) :].strip()
+                                logger.debug(
+                                    f"Found last user question with prefix '{prefix}': {last_user_question[:50]}..."
+                                )
+                                break
+                        if last_user_question:
                             break
 
                     if last_user_question:
@@ -91,6 +103,9 @@ class QueryProcessor:
                         logger.debug("Query augmented with last user question for follow-up")
                     else:
                         # Fallback to full context if we can't extract
+                        logger.warning(
+                            "Could not extract last user question from chat history. Using full context as fallback."
+                        )
                         result_query = f"{chat_history}\n\nCurrent question: {query}"
                         logger.debug("Query augmented with full chat history context (fallback)")
                 else:
