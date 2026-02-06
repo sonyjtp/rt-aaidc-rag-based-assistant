@@ -24,7 +24,7 @@ jobs:
           pylint --fail-under=9.0 $(git ls-files '*.py')
       - name: Run tests with coverage
         run: |
-          pytest --cov=src --cov-report=term-missing --cov-report=xml --cov-fail-under=90 \
+          pytest --cov=src --cov-report=term-missing --cov-report=xml --cov-fail-under=90
       - name: Update README with coverage badge
         if: github.ref == 'refs/heads/main' && matrix.python-version == '3.12'
         run: |
