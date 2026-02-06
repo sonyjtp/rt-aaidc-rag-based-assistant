@@ -26,6 +26,7 @@
 - [Customization Guide](#-customization-guide)
 - [Troubleshooting](#-troubleshooting)
 - [Documentation](#-documentation)
+- [Contact & Support](#-contact--support)
 - [License](#-license)
 
 
@@ -754,6 +755,29 @@ This project includes comprehensive documentation for different aspects:
 
 ---
 
+## 📧 Contact & Support
+
+### Get Help
+- **Issues & Bug Reports**: [GitHub Issues](https://github.com/sonyjtp/rag-based-assistant/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/sonyjtp/rag-based-assistant/discussions)
+- **Email**: sony.jacob.thomas@example.com
+
+### Creator
+**Sony Jacob Thomas**
+- GitHub: [@sonyjtp](https://github.com/sonyjtp)
+- LinkedIn: [Sony Jacob Thomas](https://www.linkedin.com/in/sonyjacobthomas)
+
+
+
+### Support the Project
+If you find this project helpful:
+- ⭐ Star the repository
+- 🐛 Report bugs and suggest features
+- 📤 Submit pull requests
+- 💬 Share feedback and use cases
+
+---
+
 ## 📄 License
 
 This project is licensed under **CC BY-NC-SA 4.0** (Creative Commons Attribution-NonCommercial-ShareAlike 4.0).
@@ -770,5 +794,5 @@ See [LICENSE](LICENSE) file for full details.
 
 ---
 
-**Last Updated**: January 2026
-**Status**: 🛠️ Under Active Development
+**Last Updated**: February 2026
+**Status**: ✅ Production Ready
