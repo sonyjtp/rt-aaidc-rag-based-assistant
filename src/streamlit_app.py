@@ -70,6 +70,9 @@ with st.sidebar:
     # Clear chat history button
     if st.button(CLEAR_HISTORY_BUTTON, use_container_width=True):
         st.session_state[SESSION_CHAT_HISTORY] = []
+        # Clear the assistant's memory as well
+        if st.session_state[SESSION_ASSISTANT]:
+            st.session_state[SESSION_ASSISTANT].clear_memory()
         st.rerun()
 
     st.divider()
@@ -141,6 +144,8 @@ if st.session_state[SESSION_INITIALIZED]:
                 "Enter your question about the documents:",
                 placeholder="e.g., What are the major rivers in India? Or ask about Indian history, culture, etc.",
                 label_visibility="collapsed",
+                help="Ask any question about India—history, culture, geography, religions, government, economy, "
+                "cuisine, sports, and more.",
             )
 
         with col2:

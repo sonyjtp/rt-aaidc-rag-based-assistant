@@ -145,3 +145,16 @@ class MemoryManager:
                 logger.error(f"Error loading memory variables: {e}")
                 return {}
         return {}
+
+    def clear(self) -> None:
+        """Clear all memory.
+
+        Reinitializes the memory instance to reset all stored conversation history.
+        """
+        if self.memory:
+            try:
+                # Reinitialize memory to clear it
+                self._initialize_memory()
+                logger.info(f"Memory cleared ({self.strategy})")
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                logger.error(f"Error clearing memory: {e}")

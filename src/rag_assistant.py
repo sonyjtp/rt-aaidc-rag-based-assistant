@@ -274,3 +274,13 @@ class RAGAssistant:
             self.memory_manager.add_message(input_text=query, output_text=response)
 
         return response
+
+    def clear_memory(self) -> None:
+        """Clear conversation memory.
+
+        Resets all stored conversation history, useful when starting a new conversation
+        or when the user explicitly clears the chat history.
+        """
+        if self.memory_manager:
+            self.memory_manager.clear()
+            logger.info("Conversation memory cleared")

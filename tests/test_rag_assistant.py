@@ -551,3 +551,58 @@ class TestRAGAssistant:  # pylint: disable=redefined-outer-name
         with pytest.raises(RuntimeError):
             assistant.invoke("Any query")
         mock_components["search_manager_instance"].search.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "has_memory_manager,should_call_clear",
+        [
+            (True, True),
+            (False, False),
+        ],
+    )
+    def test_clear_memory(self, mock_components, has_memory_manager, should_call_clear):
+        """Test clearing memory with and without memory_manager.
+
+        Parametrized to test:
+        - When memory_manager exists: should call clear()
+        - When memory_manager is None: should not raise error
+        """
+        assistant = RAGAssistant()
+
+        if not has_memory_manager:
+            assistant.memory_manager = None
+
+        # Should not raise an error in either case
+        assistant.clear_memory()
+
+        if should_call_clear:
+            mock_components["memory_instance"].clear.assert_called_once()
+        else:
+            mock_components["memory_instance"].clear.assert_not_called()
+
+    def test_clear_memory_logs_action(self, mock_components):
+        """Test that clear_memory logs the action when memory_manager exists."""
+        assistant = RAGAssistant()
+        assistant.clear_memory()
+
+        # Verify logging was called
+        mock_components["mock_logger"].info.assert_called()
+        log_messages = [call.args[0] for call in mock_components["mock_logger"].info.call_args_list]
+        assert any("memory cleared" in msg.lower() for msg in log_messages)
+
+    def test_clear_memory_during_multi_turn(self, mock_components):
+        """Test clearing memory resets conversation history mid-conversation."""
+        assistant = RAGAssistant()
+
+        # Simulate multi-turn conversation: Q1 -> A1 -> Clear -> Q2 -> A2
+        assistant.invoke("First question")
+        initial_call_count = mock_components["memory_instance"].add_message.call_count
+
+        assistant.clear_memory()
+        mock_components["memory_instance"].clear.assert_called_once()
+
+        # Reset and verify fresh conversation after clear
+        mock_components["memory_instance"].reset_mock()
+        assistant.invoke("Second question")
+
+        # New conversation should have same message count as initial single message
+        assert mock_components["memory_instance"].add_message.call_count == initial_call_count

@@ -71,20 +71,21 @@ Only appears after the first message is sent.
 ```
 ┌─────────────────────────────────────┐
 │ You:                                │
-│ What is quantum cryptography?       │
+│ What are the major religions of India? │
 ├─────────────────────────────────────┤
 │ Assistant:                          │
-│ Quantum cryptography is a field of  │
-│ computer science that uses quantum  │
-│ mechanics principles to secure...   │
+│ India is home to multiple major     │
+│ religions including Hinduism,       │
+│ Buddhism, Sikhism, and more...      │
 └─────────────────────────────────────┘
 ```
 
 ### 5. **Input Area**
 
 #### **Question Input Field**
-- **Label**: "Ask a Question"
-- **Placeholder**: "e.g., What is quantum computing? (Press Enter to send)"
+- **Label**: "Enter your question about the documents:"
+- **Placeholder**: "e.g., What are the major rivers in India? Or ask about Indian history, culture, etc."
+- **Help Text** (on hover): "Ask any question about India—history, culture, geography, religions, government, economy, cuisine, sports, and more."
 - **Input Type**: Text input with automatic focus
 - **Submission**:
   - Press `Enter` or click the "Send" button
@@ -175,8 +176,8 @@ The assistant performs several steps on each response:
 ### Workflow 2: **Multi-turn Conversation**
 
 ```
-1. Ask: "What is quantum computing?"
-2. Follow-up: "Tell me more about quantum cryptography"
+1. Ask: "What is the history of India?"
+2. Follow-up: "Tell me more about the freedom struggle"
 3. Each turn adds to chat history
 4. Click "Clear Chat History" to reset
 5. Sidebar shows ✅ Ready status throughout

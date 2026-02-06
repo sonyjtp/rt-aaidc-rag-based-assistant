@@ -229,3 +229,43 @@ class TestMemoryManager:
                     manager = MemoryManager(llm=combined_fixtures["mock_llm"])
         setup(manager)
         assert assertions(manager)
+
+    # ========================================================================
+    # MEMORY CLEARING TESTS
+    # ========================================================================
+
+    @pytest.mark.parametrize(
+        "combined_fixtures",
+        ["summarization_sliding_window", "simple_buffer", "summary"],
+        indirect=True,
+    )
+    def test_clear_memory_across_strategies(self, combined_fixtures):
+        """Test clearing memory resets state across different memory strategies."""
+        manager = MemoryManager(llm=combined_fixtures["mock_llm"])
+        assert manager.memory is not None
+
+        # Add messages to memory
+        manager.add_message(input_text="Question", output_text="Answer")
+
+        # Clear and verify reinitialize
+        manager.clear()
+        assert manager.memory is not None
+
+    def test_clear_memory_with_no_strategy(self, combined_fixtures):
+        """Test clearing memory when strategy is 'none' (no-op gracefully)."""
+        with patch("src.memory_manager.MEMORY_STRATEGY", "none"):
+            manager = MemoryManager(llm=combined_fixtures["mock_llm"])
+            assert manager.memory is None
+
+            # Should not raise error
+            manager.clear()
+            assert manager.memory is None
+
+    def test_clear_memory_error_handling(self, combined_fixtures):
+        """Test clear() handles errors gracefully without raising."""
+        manager = MemoryManager(llm=combined_fixtures["mock_llm"])
+        manager.memory = combined_fixtures["mock_memory"]
+
+        # Simulate initialization failure
+        with patch.object(manager, "_initialize_memory", side_effect=RuntimeError("Clear failed")):
+            manager.clear()  # Should not raise
