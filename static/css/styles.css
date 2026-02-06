@@ -1,49 +1,164 @@
-body {
-    background-color: #1e1e1e;
-    color: #ffffff;
-    font-family: 'Segoe UI', 'Helvetica Neue', -apple-system, BlinkMacSystemFont, sans-serif;
-    font-size: 16px;
-    font-weight: 400;
-    letter-spacing: 0.3px;
-}
+/* ==========================================================================
+   DARK MODE (FORCED - Override Streamlit defaults)
+   ========================================================================== */
 
-.stApp {
-    background-color: #1e1e1e;
-    color: #ffffff;
-    font-family: 'Segoe UI', 'Helvetica Neue', -apple-system, BlinkMacSystemFont, sans-serif;
-}
-
-.stText, h1, h2, h3, h4, h5, h6, p, div {
+html, body {
+    background-color: #1e1e1e !important;
     color: #ffffff !important;
-    font-family: 'Segoe UI', 'Helvetica Neue', -apple-system, BlinkMacSystemFont, sans-serif !important;
+    font-family: 'Segoe UI', 'Helvetica Neue', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
-.chat-message {
-    padding: 1.5rem;
-    border-radius: 0.5rem;
-    margin-bottom: 1rem;
-    display: flex;
-    gap: 1rem;
-    color: #ffffff;
+[data-testid="stAppViewContainer"],
+.stAppViewContainer,
+.stApp,
+.stMainBlockContainer,
+.stAppViewBlockContainer {
+    background-color: #1e1e1e !important;
+    color: #ffffff !important;
 }
 
-.user-message {
-    background-color: #2c3e50;
-    border-left: 4px solid #3498db;
-    color: #ffffff;
+.stAppHeader {
+    background-color: #1e1e1e !important;
+    border-bottom: 1px solid #3498db !important;
 }
 
-.assistant-message {
-    background-color: #34495e;
-    border-left: 4px solid #2ecc71;
-    color: #ffffff;
+.stText, h1, h2, h3, h4, h5, h6, p, div, span {
+    color: #ffffff !important;
 }
 
-.title-text {
-    text-align: center;
-    color: #3498db;
+/* CRITICAL: Override ALL Streamlit default colors */
+[data-testid="stTickBarMin"],
+[data-testid="stTickBarMax"],
+.streamlit-container {
+    background-color: #1e1e1e !important;
+    color: #ffffff !important;
 }
 
+/* Menu styling - DARK MODE */
+.stPopover {
+    background-color: #2c3e50 !important;
+    color: #ffffff !important;
+}
+
+.stPopover > div {
+    background-color: #2c3e50 !important;
+    color: #ffffff !important;
+}
+
+.stPopover div {
+    background-color: #2c3e50 !important;
+    color: #ffffff !important;
+}
+
+[data-baseweb="popover"] {
+    background-color: #2c3e50 !important;
+    color: #ffffff !important;
+}
+
+[role="menuitem"] {
+    background-color: #2c3e50 !important;
+    color: #ffffff !important;
+    padding: 0.5rem 1rem !important;
+    border-radius: 4px !important;
+    transition: background-color 0.2s ease !important;
+}
+
+[role="menuitem"]:hover {
+    background-color: #2980b9 !important;
+    color: #ffffff !important;
+}
+
+.stPopover button {
+    background-color: transparent !important;
+    color: #ffffff !important;
+}
+
+.stPopover button:hover {
+    background-color: #2980b9 !important;
+    color: #ffffff !important;
+}
+
+.stPopover a {
+    color: #3498db !important;
+}
+
+.stPopover a:hover {
+    color: #2980b9 !important;
+}
+
+.stPopover p, .stPopover span, .stPopover label {
+    color: #ffffff !important;
+}
+
+.stPopover ul, .stPopover ul li {
+    background-color: #2c3e50 !important;
+    color: #ffffff !important;
+}
+
+.stPopover * {
+    background-color: #2c3e50 !important;
+    color: #ffffff !important;
+}
+
+.stPopover svg {
+    color: #ffffff !important;
+    fill: #ffffff !important;
+}
+
+/* Select boxes and dropdowns - DARK */
+[data-baseweb="select"] {
+    background-color: #2c3e50 !important;
+    color: #ffffff !important;
+}
+
+[data-baseweb="select"] > div {
+    background-color: #2c3e50 !important;
+    color: #ffffff !important;
+}
+
+[data-baseweb="select"] > div > div {
+    background-color: #2c3e50 !important;
+    color: #ffffff !important;
+    border: 1px solid #3498db !important;
+}
+
+[data-baseweb="select"] svg {
+    color: #ffffff !important;
+    fill: #ffffff !important;
+}
+
+[data-baseweb="input"] input {
+    background-color: #3a4a5a !important;
+    color: #ffffff !important;
+}
+
+[data-baseweb="input"] svg {
+    color: #ffffff !important;
+    fill: #ffffff !important;
+    stroke: #ffffff !important;
+}
+
+[data-baseweb="menu"] {
+    background-color: #2c3e50 !important;
+}
+
+[data-baseweb="menu"] > div {
+    background-color: #2c3e50 !important;
+    color: #ffffff !important;
+}
+
+[data-baseweb="menu"] li {
+    color: #ffffff !important;
+    background-color: #2c3e50 !important;
+    transition: background-color 0.2s ease !important;
+}
+
+[data-baseweb="menu"] li:hover {
+    background-color: #2980b9 !important;
+    color: #ffffff !important;
+}
+
+/* Input styling - DARK */
 .stTextInput > div > div > input {
     background-color: #3a4a5a !important;
     color: #ffffff !important;
@@ -59,24 +174,90 @@ body {
     color: #ffffff !important;
 }
 
+/* Modals and dialogs - DARK */
+[data-testid="stModal"] {
+    background-color: #1e1e1e !important;
+}
+
+[data-testid="stModal"] > div {
+    background-color: #1e1e1e !important;
+}
+
+[role="dialog"] {
+    background-color: #1e1e1e !important;
+    color: #ffffff !important;
+}
+
+[role="dialog"] * {
+    background-color: #1e1e1e !important;
+    color: #ffffff !important;
+}
+
+[role="dialog"] > div {
+    background-color: #1e1e1e !important;
+    color: #ffffff !important;
+}
+
+[role="dialog"] input,
+[role="dialog"] textarea,
+[role="dialog"] select {
+    background-color: #3a4a5a !important;
+    color: #ffffff !important;
+    border: 1px solid #3498db !important;
+}
+
+[role="dialog"] label {
+    color: #ffffff !important;
+}
+
+[role="dialog"] button {
+    background-color: #3498db !important;
+    color: #ffffff !important;
+    border: none !important;
+    transition: background-color 0.2s ease !important;
+}
+
+[role="dialog"] button:hover {
+    background-color: #2980b9 !important;
+}
+
+/* Buttons - DARK */
 .stButton > button {
     background-color: #3498db !important;
     color: #ffffff !important;
     border: none !important;
+    transition: background-color 0.2s ease !important;
 }
 
 .stButton > button:hover {
     background-color: #2980b9 !important;
 }
 
-.stMarkdown {
+/* Chat messages - DARK */
+.chat-message {
+    padding: 1.5rem;
+    border-radius: 0.5rem;
+    margin-bottom: 2rem !important;
+    display: flex;
+    gap: 1rem;
+    color: #ffffff;
+}
+
+.user-message {
+    background-color: #2c3e50 !important;
+    border-left: 4px solid #3498db !important;
     color: #ffffff !important;
+    margin-bottom: 2rem !important;
 }
 
-.stDivider {
-    background-color: #3498db !important;
+.assistant-message {
+    background-color: #34495e !important;
+    border-left: 4px solid #2ecc71 !important;
+    color: #ffffff !important;
+    margin-bottom: 2rem !important;
 }
 
+/* Sidebar - DARK */
 .stSidebar {
     background-color: #252d36 !important;
 }
@@ -85,6 +266,68 @@ body {
     color: #ffffff !important;
 }
 
+/* General - DARK */
+.stDivider {
+    background-color: #3498db !important;
+}
+
+.stMarkdown {
+    color: #ffffff !important;
+}
+
+.title-text {
+    text-align: center;
+    color: #3498db;
+}
+
+/* Notifications - DARK */
 .stInfo, .stSuccess, .stWarning, .stError {
     color: #ffffff !important;
+}
+
+/* Hide screenshot button and theme selector */
+button:has(svg[class*="screenshot"]), [data-testid*="screenshot"], [aria-label*="screenshot"] {
+    display: none !important;
+}
+
+/* Hide the "Choose app theme" selectbox AND its parent label container */
+[data-testid="stSelectbox"] {
+    display: none !important;
+}
+
+/* Hide the parent wrapper that contains the label and selectbox */
+.st-emotion-cache-17v3rtm:has([data-testid="stSelectbox"]),
+.st-emotion-cache-17v3rtm:has(.stSelectbox) {
+    display: none !important;
+}
+
+/* Hide any div that contains a label with "Choose app theme" */
+div:has(> label:nth-of-type(1)) {
+    /* This is too broad, but using alternative approach below */
+}
+
+/* More specific: Hide the entire element group */
+[data-testid="stSelectbox"]::before,
+[data-testid="stSelectbox"]::after {
+    display: none !important;
+}
+
+/* Hide label that precedes selectbox */
+label + .stSelectbox,
+label + [data-testid="stSelectbox"] {
+    display: none !important;
+}
+
+/* Hide the label itself if it's above selectbox */
+.st-emotion-cache-1snuxgb {
+    display: none !important;
+}
+
+.stSelectbox {
+    display: none !important;
+}
+
+
+.stToolbarActionButtons button:nth-child(3) {
+    display: none !important;
 }

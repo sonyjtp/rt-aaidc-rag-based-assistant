@@ -17,6 +17,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY src/ ./src/
 COPY config/ ./config/
+COPY .streamlit/config.toml /app/.streamlit/config.toml
 COPY static/ ./static/
 COPY data/ ./data/
 

@@ -75,9 +75,9 @@ This project implements a **Retrieval-Augmented Generation (RAG)** chatbot that:
 
 - ✅ **RAG-Enhanced Reasoning** (rag_enhanced_reasoning) — default: Retrieve relevant documents first, then apply reasoning grounded in those documents; `enabled: true`.
 - ✅ **Chain-of-Thought** (chain_of_thought): Step-by-step internal reasoning before the final answer; `enabled: true`.
-- ✅ **ReAct** (react): Interleave reasoning and actions (e.g., document retrieval) dynamically; `enabled: false`.
 - ✅ **Few-Shot Prompting** (few_shot_prompting): Include examples in the prompt to guide format and style; `enabled: true`.
 - ✅ **Metacognitive Prompting** (metacognitive_prompting): Reflect on confidence, limitations, and uncertainty; `enabled: true`.
+- 🔲 **ReAct** (react): Interleave reasoning and actions (e.g., document retrieval) dynamically; `enabled: false`.
 
 ### Safety & Quality
 - ✅ **Hallucination Prevention**: Strict prompt constraints
@@ -188,186 +188,19 @@ pre-commit install
 
 ## 🐳 Docker Deployment
 
-### Prerequisites
-- Docker 20.10+
-- Docker Compose 1.29+
-- API keys for at least one LLM provider (see [Quick Start](#-quick-start))
-
 ### Quick Start with Docker
 
 ```bash
-# Build the Docker image
-docker build -t rag-assistant:latest .
-
-# Run the container
-docker run -p 8501:8501 \
-  -e OPENAI_API_KEY=your_key_here \
-  -e GROQ_API_KEY=your_key_here \
-  -e GOOGLE_API_KEY=your_key_here \
-  -v $(pwd)/data:/app/data \
-  rag-assistant:latest
-
-# Access the app at http://localhost:8501
-```
-
-### Using Docker Compose (Recommended)
-
-**1. Create `.env` file with your API keys:**
-
-```bash
-# Copy the example
+# Create .env file with your API keys
 cp .env_example .env
-
 # Edit .env with your credentials
-OPENAI_API_KEY=your_openai_key
-GROQ_API_KEY=your_groq_key
-GOOGLE_API_KEY=your_google_key
-```
 
-**2. Start the application:**
-
-```bash
-# Start the service in background
+# Start the application
 docker-compose up -d
 
-# View logs
-docker-compose logs -f rag-assistant
-
-# Stop the service
-docker-compose down
+# Access at http://localhost:8501
 ```
 
-**3. Access the application:**
-
-Open your browser and navigate to: `http://localhost:8501`
-
-### Docker Compose Configuration
-
-The `docker-compose.yml` file includes:
-
-```yaml
-services:
-  rag-assistant:
-    build: .                              # Build from Dockerfile
-    container_name: rag-assistant-ui      # Container name
-    ports:
-      - "8501:8501"                       # Streamlit port
-    environment:
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - GROQ_API_KEY=${GROQ_API_KEY}
-      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
-    volumes:
-      - ./data:/app/data                  # Mount documents
-      - ./config:/app/config              # Mount config files
-    env_file:
-      - .env                              # Load from .env file
-```
-
-### Dockerfile Details
-
-The `Dockerfile` includes:
-
-- **Base Image**: `python:3.11-slim` (lightweight)
-- **Dependencies**: Installed from `requirements.txt`
-- **Code**: Copies `src/`, `config/`, `static/`, and `data/` directories
-- **Port**: Exposes port 8501 for Streamlit
-- **Styling**: Includes custom CSS from `static/css/styles.css`
-
-### Environment Variables for Docker
-
-When running in Docker, set these environment variables via `.env` or `-e` flag:
-
-```bash
-# LLM Provider Keys (choose at least one)
-OPENAI_API_KEY=your_openai_key
-GROQ_API_KEY=your_groq_key
-GOOGLE_API_KEY=your_google_key
-
-# Optional: Streamlit configuration
-STREAMLIT_LOGGER_LEVEL=info
-```
-
-### Useful Docker Commands
-
-```bash
-# Build image with custom tag
-docker build -t rag-assistant:v1.0 .
-
-# List running containers
-docker ps
-
-# View container logs
-docker logs rag-assistant-ui
-
-# Access container shell
-docker exec -it rag-assistant-ui bash
-
-# Push to Docker Hub
-docker tag rag-assistant:latest username/rag-assistant:latest
-docker push username/rag-assistant:latest
-
-# Clean up (remove containers, images)
-docker-compose down
-docker system prune -a
-```
-
-### Volumes & Data Persistence
-
-- **`./data:/app/data`** — Mount your document directory
-  - Add `.txt` files to `data/` on your host machine
-  - Accessible inside container at `/app/data`
-
-- **`./config:/app/config`** — Mount configuration files
-  - Modify YAML configs on your host
-  - Changes reflected immediately (no rebuild needed)
-
-### Performance Tips
-
-1. **GPU Support** (Optional)
-   ```bash
-   # If you have NVIDIA GPU, add to docker-compose.yml:
-   deploy:
-     resources:
-       reservations:
-         devices:
-           - driver: nvidia
-             count: 1
-             capabilities: [gpu]
-   ```
-
-2. **Memory Management**
-   ```bash
-   # Limit memory usage
-   docker run -m 2g rag-assistant:latest
-   ```
-
-3. **Custom Port**
-   ```bash
-   # Run on different port
-   docker run -p 9000:8501 rag-assistant:latest
-   # Access at http://localhost:9000
-   ```
-
-### Troubleshooting Docker
-
-| Issue | Solution |
-|-------|----------|
-| Port 8501 already in use | Change port in docker-compose: `"9000:8501"` |
-| API keys not found | Ensure `.env` file exists and is loaded |
-| Documents not found | Verify `data/` directory is mounted correctly |
-| Styling not applied | Rebuild image: `docker-compose up -d --build` |
-| Container crashes | Check logs: `docker-compose logs rag-assistant` |
-
-### `.dockerignore` File
-
-The project includes a `.dockerignore` file that excludes:
-- Git files (`.git`, `.gitignore`)
-- Cache files (`__pycache__`, `.pytest_cache`)
-- Virtual environments (`venv`, `.venv`)
-- IDE files (`.idea`, `.vscode`)
-- Environment files (`.env.local`)
-
-This keeps Docker images small and fast.
 
 ---
 
@@ -380,6 +213,94 @@ For advanced configuration options, see:
 - `config/memory_strategies.yaml` — Memory strategy definitions
 - `config/reasoning_strategies.yaml` — Reasoning approach configurations
 - `config/prompt-config.yaml` — System prompts and safety constraints
+
+### Embedding Models
+
+The system uses **HuggingFace Transformers** for document embeddings:
+
+- **Default Model**: `all-mpnet-base-v2` (384-dimensional embeddings)
+  - Fast and efficient
+  - Good balance between quality and performance
+  - ~400MB model size
+
+**To change the embedding model:**
+```python
+# In src/config.py
+VECTOR_DB_EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"  # Faster, smaller (22MB)
+# or
+VECTOR_DB_EMBEDDING_MODEL = "sentence-transformers/bge-large-en-v1.5"  # Higher quality, larger
+```
+
+**Performance considerations:**
+- Smaller models (MiniLM): ~5-10MB, faster inference, lower quality
+- Default (all-mpnet): ~400MB, balanced, recommended
+- Larger models (bge-large): ~300MB, highest quality, slower
+
+### Hardware Requirements & Performance
+
+**Minimum Requirements:**
+- CPU: 2+ cores (x86-64 or ARM)
+- RAM: 4GB (2GB minimum for embedding model)
+- Storage: 500MB for embeddings model + document space
+
+**Recommended Specs:**
+- CPU: 4+ cores
+- RAM: 8GB (for smooth operation with larger documents)
+- Storage: 2GB+ (allows for model caching and logs)
+- GPU: Optional (accelerates embedding generation 5-10x)
+
+**Performance Benchmarks (single 2000-char document chunk):**
+- Embedding generation: ~100-200ms (CPU) / ~20-30ms (GPU)
+- Document retrieval: ~50-150ms
+- LLM response: 2-10 seconds (depends on provider and query complexity)
+- Total response time: 3-15 seconds typical
+
+**GPU Acceleration (Optional):**
+```bash
+# Install CUDA-enabled transformers
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+```
+
+### ChromaDB Storage & Persistence
+
+**Data Storage Location:**
+- Vector database stored in `chroma.db/` (created automatically in working directory)
+- Persists between application restarts
+- Stores embeddings, chunk text, and metadata
+
+**Important Limits:**
+- **Free tier quota**: 300 records maximum
+- When limit exceeded: `ChromaDB quota exceeded` error
+- Current batch insert size: 300 records
+
+**To reset/clear the database:**
+```python
+# In your code or interactive session
+from src.chroma_client import ChromaClient
+client = ChromaClient()
+client.delete_collection("documents")  # Removes all documents
+# Re-run document loading to rebuild
+```
+
+### Similarity Threshold Tuning
+
+The system uses **L2 distance metric** to validate document relevance:
+
+```python
+# In src/config.py
+SIMILARITY_THRESHOLD = 0.35  # Distance threshold (default)
+# Equivalent to similarity >= 0.65
+```
+
+**How to adjust:**
+- **Lower threshold (0.20)**: More permissive, retrieves more results, risk of false positives
+- **Higher threshold (0.50)**: More strict, fewer results, may miss relevant documents
+- **Meta-questions**: Always use lower threshold regardless of setting
+
+**When to adjust:**
+- Low answer quality? → Increase RETRIEVAL_K_DEFAULT to get more documents
+- Too many irrelevant results? → Increase SIMILARITY_THRESHOLD
+- Missing relevant information? → Decrease SIMILARITY_THRESHOLD slightly
 
 ### ChromaDB Quota Limitation
 
@@ -865,7 +786,27 @@ def build_system_prompts():
 | Low answer quality   | Increase `RETRIEVAL_K_DEFAULT` to retrieve more documents                |
 | Hallucination issues | Ensure documents are loaded and similarity threshold is set correctly    |
 
----
+### Common Error Messages
+
+**"I'm sorry, that information is not known to me."**
+- Cause: No documents met the similarity threshold
+- Solution: Ensure documents are loaded; adjust `SIMILARITY_THRESHOLD` (lower = more permissive)
+
+**ChromaDB: quota exceeded error**
+- Cause: Exceeded 300 record limit in free tier
+- Solution: Consolidate documents into fewer, larger files; or reduce chunk size
+
+**No API keys found in environment**
+- Cause: Missing LLM provider credentials
+- Solution: Create `.env` file with at least one API key (OpenAI, Groq, or Google)
+
+**Connection timeout to LLM provider**
+- Cause: Network issue or provider unreachable
+- Solution: Check internet connection; system auto-fallback will try next provider
+
+**Memory limit exceeded during embedding**
+- Cause: Document too large or chunk size too big
+- Solution: Reduce `CHUNK_SIZE_DEFAULT` in `src/config.py` (default: 2000)
 
 ### Debug Mode
 

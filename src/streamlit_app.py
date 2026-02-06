@@ -75,14 +75,6 @@ with st.sidebar:
             st.session_state[SESSION_ASSISTANT].clear_memory()
         st.rerun()
 
-    st.divider()
-
-    # Status section
-    st.subheader("Status")
-    if st.session_state[SESSION_INITIALIZED]:
-        st.success("✅ RAG Assistant Ready")
-    else:
-        st.warning("⏳ Initializing assistant...")
 
 # Main content area
 st.markdown(f"<h1 class='title-text'>{MAIN_TITLE}</h1>", unsafe_allow_html=True)

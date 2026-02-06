@@ -66,7 +66,7 @@ def load_custom_styles() -> None:
 
 
 def configure_page() -> None:
-    """Configure Streamlit page settings."""
+    """Configure Streamlit page settings with dark theme as default."""
     st.set_page_config(
         page_title="RAG Chatbot",
         page_icon="🤖",
